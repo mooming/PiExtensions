@@ -54,6 +54,10 @@ export default async function (pi: ExtensionAPI) {
         // Find the registered model in pi's registry to set it programmatically
         const model = ctx.modelRegistry.find("lm-studio", modelId);
         if (model && await pi.setModel(model)) {
+          // Apply model-specific settings if available
+          if (selectedModel && selectedModel.context_window) {
+            await pi.setSetting("contextWindow", selectedModel.context_window);
+          }
           ctx.ui.notify(`Switched to LM Studio model: ${modelId}`, "info");
         } else {
           ctx.ui.notify(`Failed to switch to model: ${modelId}. It may not be registered or an API key is missing.`, "error");
@@ -92,7 +96,11 @@ export default async function (pi: ExtensionAPI) {
       
       // Handle different API response formats
       if (Array.isArray(data)) {
-        return data;
+        return data.map((model: any) => ({
+          id: model.id,
+          name: model.name || model.id,
+          context_window: model.context_window || model.max_context_length
+        }));
       } else if (data.data && Array.isArray(data.data)) {
         // OpenAI-compatible format
         return data.data.map((model: any) => ({
