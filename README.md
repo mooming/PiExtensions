@@ -60,9 +60,17 @@ Below is a quick walk‑through of how the **model‑selector** extension looks 
    ```
    The UI will pop up a selector dialog.
 3. **Choose a provider** – a list appears with the providers defined in your `models.json` file.
-   ![Provider selection placeholder](assets/provider-select.png)
+   **Provider selection list** (example):
+```
+- example-provider-1
+- example-provider-2
+```
 4. **Pick a model** – after selecting a provider, another list shows the models that were fetched from that provider’s `/v1/models` endpoint.
-   ![Model selection placeholder](assets/model-select.png)
+   **Model selection list** (example):
+```
+- openai/gpt-4 (ID: openai/gpt-4)
+- google/gemma-4-31b (ID: google/gemma-4-31b)
+```
 5. **Confirm** – once you pick a model, Pi automatically switches to it and updates the status bar:
    ```text
    model: anav96-llama: bartowski/google_gemma-4-31B-it-GGUF:Q8_0
