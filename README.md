@@ -48,4 +48,30 @@ Copy the extension folder into one of the following locations so Pi can discover
 Once placed, restart Pi and you’ll see the new `/select‑model` command ready to use!
 
 ---
+
+## TUI usage example
+
+Below is a quick walk‑through of how the **model‑selector** extension looks and works inside Pi’s built‑in terminal UI (TUI).
+
+1. **Open the Pi TUI** (e.g., run `pi` in your terminal). You’ll see the usual chat area and a status bar at the bottom.
+2. **Trigger the command** by typing the slash command:
+   ```text
+   /select-model
+   ```
+   The UI will pop up a selector dialog.
+3. **Choose a provider** – a list appears with the providers defined in your `models.json` file.
+   ![Provider selection placeholder](assets/provider-select.png)
+4. **Pick a model** – after selecting a provider, another list shows the models that were fetched from that provider’s `/v1/models` endpoint.
+   ![Model selection placeholder](assets/model-select.png)
+5. **Confirm** – once you pick a model, Pi automatically switches to it and updates the status bar:
+   ```text
+   model: anav96-llama: bartowski/google_gemma-4-31B-it-GGUF:Q8_0
+   ```
+   The status bar now reflects the active provider and model.
+
+You can repeat the command at any time to switch to a different model.
+
+> **Tip:** If you don’t see any providers, double‑check that `~/.pi/agent/models.json` exists and follows the documented format. After editing the file, reload Pi (`/reload` command) to pick up the changes.
+
+---
 *Happy extending!*
