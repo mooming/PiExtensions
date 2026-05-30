@@ -4,6 +4,9 @@
 - **Extensions**: Located in `.pi/extensions/<extension-id>/`.
 - **Entry Point**: Every extension must have an `index.ts` that exports a default async function:
   `export default async function (pi: ExtensionAPI) { ... }`
+- **Available extensions**:
+  - `model-selector`: Generalized model selector that reads `~/.pi/agent/models.json`.
+
 
 ## Development
 - **Types**: Use `@earendil-works/pi-coding-agent` for the `ExtensionAPI`.
