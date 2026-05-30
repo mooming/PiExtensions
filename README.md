@@ -23,7 +23,8 @@ A collection of useful extensions for **Pi Coding Agent** – small, friendly ad
   "providers": {
     "example-provider-1": {
       "baseUrl": "http://localhost:1234",
-      "apiKey": "YOUR_API_KEY"
+      "apiKey": "YOUR_API_KEY",
+      "maxContextLength": 200000 // optional, overrides default context window for this provider's models
     },
     "example-provider-2": {
       "baseUrl": "http://your-host:port",
@@ -80,6 +81,22 @@ Below is a quick walk‑through of how the **model‑selector** extension looks 
 You can repeat the command at any time to switch to a different model.
 
 > **Tip:** If you don’t see any providers, double‑check that `~/.pi/agent/models.json` exists and follows the documented format. After editing the file, reload Pi (`/reload` command) to pick up the changes.
+
+### Customising the max context length via the TUI
+
+The extension now ships with an additional command:
+
+```
+/set-context-limit
+```
+
+Running this command opens a series of dialogs:
+
+1. **Select a provider** – pick the provider whose context window you want to change.
+2. **Enter a new value** – either choose a common size (64 k, 128 k, 256 k, 512 k) or type a custom number of tokens.
+3. The new value is written back to your `models.json` file and will be used for all models from that provider.
+
+After setting the value, you can reload the session (`/reload`) and the updated context window will be reflected in the model selector UI.
 
 ---
 *Happy extending!*
