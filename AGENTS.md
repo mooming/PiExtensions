@@ -6,6 +6,7 @@
   `export default async function (pi: ExtensionAPI) { ... }`
 - **Available extensions**:
   - `model-selector`: Generalized model selector that reads `~/.pi/agent/models.json`.
+  - `unload-model`: Allows unloading loaded models from providers using the `/models/unload` API.
 
 
 ## Development
