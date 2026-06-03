@@ -106,6 +106,7 @@ export default async function (pi: ExtensionAPI)
     return models.map((m: any) => ({
       id: m.id,
       name: m.id,
+      status: m.status?.value || "unloaded", // Track if model is loaded
       // OpenAI does not expose reasoning or vision flags; default to false.
       reasoning: false,
       vision: false,
@@ -140,6 +141,7 @@ export default async function (pi: ExtensionAPI)
           models: modelsData.map(m => ({
             id: m.id,
             name: m.name || m.id,
+            isLoaded: m.status === "loaded", // Track if model is loaded for sorting
             reasoning: m.reasoning || false,
             input: m.vision ? ["text", "image"] : ["text"],
             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
@@ -179,15 +181,27 @@ export default async function (pi: ExtensionAPI)
           return;
         }
 
+        // Sort: loaded models first, then unloaded
+        available.sort((a, b) => (b.isLoaded ? 1 : 0) - (a.isLoaded ? 1 : 0));
+
+        // Display models with [loaded] tag for loaded models
+        const modelOptions = available.map(m => 
+          `${m.isLoaded ? "[loaded] " : ""}${m.name} (${m.id})`
+        );
+
         const modelLabel = await ctx.ui.select(
           `Select Model from ${providerChoice}`,
-          available.map(m => `${m.name} (${m.id})`)
+          modelOptions
         );
         if (!modelLabel) {
           return;
         }
 
-        const selected = available.find(m => `${m.name} (${m.id})` === modelLabel);
+        // Remove the [loaded] tag if present to find the model
+        const selected = available.find(m => {
+          const label = m.isLoaded ? `[loaded] ${m.name} (${m.id})` : `${m.name} (${m.id})`;
+          return label === modelLabel;
+        });
         if (selected) {
           // Ask user whether to keep the auto‑detected context window or set a custom one
           const contextOption = await ctx.ui.select("Set max context length?", ["Auto", "Custom"]);
