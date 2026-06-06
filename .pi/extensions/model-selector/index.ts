@@ -69,7 +69,11 @@ export default async function (pi: ExtensionAPI)
     return;
   }
 
+  // Map to store loading status for models: { [providerId]: { [modelId]: isLoaded } }
+  const providerModelsMap: Record<string, Record<string, boolean>> = {};
+
   // Helper to fetch models from a generic provider using the OpenAI-compatible schema.
+
 // Allows an optional contextWindowOverride to customize max context length per provider.
   async function fetchProviderModels(baseUrl: string, apiKey?: string, contextWindowOverride?: number)
   {
@@ -141,7 +145,7 @@ export default async function (pi: ExtensionAPI)
           models: modelsData.map(m => ({
             id: m.id,
             name: m.name || m.id,
-            isLoaded: m.status === "loaded", // Track if model is loaded for sorting
+            isLoaded: (typeof m.status === 'string' ? m.status === 'loaded' : m.status?.value === 'loaded'), // Track if model is loaded for sorting
             reasoning: m.reasoning || false,
             input: m.vision ? ["text", "image"] : ["text"],
             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
@@ -149,10 +153,17 @@ export default async function (pi: ExtensionAPI)
             maxTokens: 4096,
           })),
         });
+
+        // Store loading status locally because pi.registerProvider might not preserve custom properties
+        providerModelsMap[provider.id] = {};
+        for (const m of modelsData) {
+          providerModelsMap[provider.id][m.id] = (typeof m.status === 'string' ? m.status === 'loaded' : m.status?.value === 'loaded');
+        }
+
         console.log(`Registered provider ${provider.id} with ${modelsData.length} models`);
       }
     } catch (err) {
-      console.error(`Failed to register provider ${provider.id}:`, err);
+      console.warn(`Failed to register provider ${provider.id}: ${err.message}`);
     }
   }
 
@@ -182,12 +193,17 @@ export default async function (pi: ExtensionAPI)
         }
 
         // Sort: loaded models first, then unloaded
-        available.sort((a, b) => (b.isLoaded ? 1 : 0) - (a.isLoaded ? 1 : 0));
+        available.sort((a, b) => {
+          const aLoaded = providerModelsMap[providerChoice]?.[a.id] ?? false;
+          const bLoaded = providerModelsMap[providerChoice]?.[b.id] ?? false;
+          return (bLoaded ? 1 : 0) - (aLoaded ? 1 : 0);
+        });
 
         // Display models with [loaded] tag for loaded models
-        const modelOptions = available.map(m => 
-          `${m.isLoaded ? "[loaded] " : ""}${m.name} (${m.id})`
-        );
+        const modelOptions = available.map(m => {
+          const isLoaded = providerModelsMap[providerChoice]?.[m.id] ?? false;
+          return `${isLoaded ? "[loaded] " : ""}${m.name} (${m.id})`;
+        });
 
         const modelLabel = await ctx.ui.select(
           `Select Model from ${providerChoice}`,
@@ -199,7 +215,8 @@ export default async function (pi: ExtensionAPI)
 
         // Remove the [loaded] tag if present to find the model
         const selected = available.find(m => {
-          const label = m.isLoaded ? `[loaded] ${m.name} (${m.id})` : `${m.name} (${m.id})`;
+          const isLoaded = providerModelsMap[providerChoice]?.[m.id] ?? false;
+          const label = isLoaded ? `[loaded] ${m.name} (${m.id})` : `${m.name} (${m.id})`;
           return label === modelLabel;
         });
         if (selected) {
