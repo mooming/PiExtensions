@@ -29,39 +29,47 @@ export default async function (pi: ExtensionAPI)
   }> = [];
   let foundPath: string | null = null;
 
-  for (const p of pathsToTry)
+  async function loadProviderDefs()
   {
-    try
-    {
-      const raw = fs.readFileSync(p, "utf-8");
-      const parsed = JSON.parse(raw);
+    providerDefs = [];
+    foundPath = null;
 
-      if (Array.isArray(parsed))
+    for (const p of pathsToTry)
+    {
+      try
       {
-        providerDefs = parsed;
-        foundPath = p;
-        break;
-      }
-      else if (parsed && typeof parsed === "object" && parsed.providers)
-      {
-        // Support { "providers": { "id": { ... }, ... } } format
-        const providersObj = parsed.providers;
-        if (typeof providersObj === "object" && providersObj !== null)
+        const raw = fs.readFileSync(p, "utf-8");
+        const parsed = JSON.parse(raw);
+
+        if (Array.isArray(parsed))
         {
-          providerDefs = Object.entries(providersObj).map(([id, def]: [string, any]) => ({
-            id,
-            ...def,
-          }));
+          providerDefs = parsed;
           foundPath = p;
           break;
         }
+        else if (parsed && typeof parsed === "object" && parsed.providers)
+        {
+          // Support { "providers": { "id": { ... }, ... } } format
+          const providersObj = parsed.providers;
+          if (typeof providersObj === "object" && providersObj !== null)
+          {
+            providerDefs = Object.entries(providersObj).map(([id, def]: [string, any]) => ({
+              id,
+              ...def,
+            }));
+            foundPath = p;
+            break;
+          }
+        }
+      }
+      catch (e)
+      {
+        // Continue to next possible path
       }
     }
-    catch (e)
-    {
-      // Continue to next possible path
-    }
   }
+
+  await loadProviderDefs();
 
   if (!foundPath)
   {
@@ -177,6 +185,23 @@ export default async function (pi: ExtensionAPI)
     {
       description: "Select a model from any configured provider",
       handler: async (args, ctx) => {
+        // Refresh provider definitions and registrations
+        const oldProviderIds = providerDefs.map(p => p.id);
+        await loadProviderDefs();
+        
+        // Unregister providers that are no longer in the new providerDefs
+        const newProviderIds = providerDefs.map(p => p.id);
+        for (const id of oldProviderIds) {
+          if (!newProviderIds.includes(id)) {
+            pi.unregisterProvider(id);
+          }
+        }
+
+        // Re-register (or update) all providers in the new providerDefs
+        for (const provider of providerDefs) {
+          await registerProvider(provider);
+        }
+
         // Build a list of providers that have models registered
         const providers = providerDefs.map(p => p.id);
         const providerChoice = await ctx.ui.select("Select Provider", providers);
