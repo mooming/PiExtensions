@@ -107,6 +107,30 @@ Follow this protocol **strictly and in order**. Do not skip steps. Do not reorde
 - Identify and remove unnecessary variables, dead code, redundant functions, unused imports, and over-engineered abstractions.
 - Maintain concise, minimal code. Every line must earn its existence.
 
+**Critical: Logging Strategy**
+
+- **Logs are the lifeline of executable verification.** When a program cannot be visually observed (especially GUI, graphics, or real-time systems), logs are the only way to confirm correct behavior at runtime.
+- For **graphics-based programs** (GUI, game, visualization, canvas, etc.): detailed execution logs are **mandatory**. Every state transition, user interaction, rendering event, and error must be logged with context (timestamp, function name, parameter values).
+- Use **preprocessor-based conditional logging** for production readiness. Structure logs so they can be enabled/disabled globally with a single flag:
+  ```c
+  #ifdef ENABLE_DEBUG_LOGS
+  LOG_INFO("[Render] Drawing frame %d at (%d, %d)", frame, x, y);
+  #endif
+  ```
+- Never strip logs by deletion after verification. Toggle them via the preprocessor. This preserves runtime visibility for future debugging without re-introducing code.
+- Log levels must be structured: `ERROR` (always on), `WARN` (always on), `INFO` (debug build only), `DEBUG` (debug build only).
+
+**Critical: UI Design with HTML**
+
+- Whenever a task involves **UI components** (web pages, desktop GUI, mobile interfaces, dashboards, forms, etc.), you **must create an HTML document** to define and validate the UI design before writing implementation code.
+- The HTML document should be a **self-contained, browser-runnable prototype** — no external build tools, no framework dependencies. Use vanilla HTML, CSS, and JavaScript only. Include:
+  - **Layout structure** — wireframe or styled mockup showing component placement
+  - **Visual design** — colors, typography, spacing, responsive behavior
+  - **Interaction hints** — hover states, click handlers, form validation examples (non-functional placeholders are acceptable)
+  - **Navigation flow** — how screens/pages connect (use links or anchor links)
+- The HTML prototype **must be presented to the user for approval** before any UI implementation code is written. This is a separate confirmation step, distinct from the overall plan approval.
+- This ensures the user can **see, interact with, and approve** the UI design in a real browser before committing to implementation. Avoid assumptions about how the user envisions the interface.
+
 ---
 
 ### Phase 4: Reporting and Next Step

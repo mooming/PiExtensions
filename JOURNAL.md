@@ -15,9 +15,10 @@ Fundamental Thinking
 
 Execution Protocol
   Phase 1: Goal Definition       (Step 1~2) — 요청 분석 + 목표 보완
-  Phase 2: Planning              (Step 3~5) — PLAND.md 작성 + 검증 기획 + 승인
+  Phase 2: Planning              (Step 3~5) — PLAND.md 작성 + 검증 기획 + 승인 (+ UI HTML 프로토타입)
   Phase 3: Execution & Verification (Step 6~9) — 실행 → 검증 → 분석 → 수정 (루프 10회/15분)
   Phase 4: Reporting             (Step 10~11) — 보고 + 다음 단계
+  Critical: 코드 간결성 + 전처리기 기반 조건부 로깅
 
 Review Process
   ├─ Code 변경 시: 4-agent 리뷰 (Goal Inspector, Architect, Validator, Joker) → 만장일치 필요
@@ -39,3 +40,5 @@ File Management
 7. 분석(Step 8)과 수정(Step 9) 단계 분리
 8. **구조적 사고 강제** — 사고, 계획, 문서, 보고서, 프로그램 설계 모두 구조적으로. 구조 설계 자체도 불필요한 부분 없이 간결하게.
 9. **리뷰 4인체제** — Goal Inspector(결과) + Architect(구조) + Validator(구현) + Joker(유저 관점 혁신). 조커는 상시 활성화.
+10. **전처리기 기반 조건부 로깅** — 그래픽 프로그램 상세 로그 필수, #ifdef/#endif로 한번에 전환. 검증 후 로그 제거하지 않고 조건부로 전환.
+11. **UI 디자인 HTML 프로토타입** — UI 포함 작업 시 코드 작성 전 브라우저 실행 가능한 HTML 프로토타입 작성 및 사용자 승인.
