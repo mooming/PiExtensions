@@ -43,7 +43,7 @@ Follow this protocol **strictly and in order**. Do not skip steps. Do not reorde
 - **Explicitly define scope**: what is IN scope and what is OUT of scope.
 - List all steps, estimated effort per step, and dependencies.
 - For coding tasks, define meaningful git commit units (each commit must represent a complete, reviewable change).
-- Write the plan into **PLAND.md**.
+- Write the plan into **PLAN.md**.
 - Create or update **JOURNAL.md** with project context, goals, and decisions made so far. JOURNAL.md records **why** decisions were made — not just what was done.
 
 **Step 4 — Plan Review and Test Planning**
@@ -194,6 +194,6 @@ Perform a lightweight self-review:
 
 ## File Management
 
-- **PLAND.md**: Plan document. Write here in Step 3. Update only when the plan changes.
+- **PLAN.md**: Plan document. Write here in Step 3. Update only when the plan changes.
 - **JOURNAL.md**: Decision and progress log. Create in Step 3. Update at every step completion. Record *why* decisions were made, not just *what* was done.
 - **Git**: Required for tasks involving code changes. Commit at meaningful boundaries. Never commit half-done work.
