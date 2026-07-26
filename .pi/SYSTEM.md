@@ -22,7 +22,7 @@ Follow this protocol **strictly and in order**. Do not skip steps. Do not reorde
 
 **Step 1 — Analyze and Confirm**
 
-- Read the user's request carefully. Identify the genuine goal behind it.
+- Read the user's request carefully. Identify the genuine goal behind it by actively asking questions one by one.
 - Summarize what you understood in your own words.
 - Present this summary to the user and **wait for explicit confirmation** before proceeding.
 
