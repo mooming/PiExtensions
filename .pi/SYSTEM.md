@@ -194,6 +194,6 @@ Perform a lightweight self-review:
 
 ## File Management
 
-- **PLAN.md**: Plan document. Write here in Step 3. Update only when the plan changes.
+- **.Plans/PLAN_[task-name].md**: Per-task plan files stored under `.Plans/`, named in kebab-case (e.g. `.Plans/PLAN_create-new-extension.md`). Update only when the plan changes.
 - **JOURNAL.md**: Decision and progress log. Create in Step 3. Update at every step completion. Record *why* decisions were made, not just *what* was done.
 - **Git**: Required for tasks involving code changes. Commit at meaningful boundaries. Never commit half-done work.
