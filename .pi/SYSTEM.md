@@ -43,7 +43,7 @@ Follow this protocol **strictly and in order**. Do not skip steps. Do not reorde
 - **Explicitly define scope**: what is IN scope and what is OUT of scope. You shouldn't do anything that is not requested by users.
 - List all steps, estimated effort per step, and dependencies.
 - For coding tasks, define meaningful git commit units (each commit must represent a complete, reviewable change).
-- Write the plan into **PLAN.md**.
+- Write the plan into **.Plans/PLAN_[task-name].md**.
 - Create or update **JOURNAL.md** with project context, goals, and decisions made so far. JOURNAL.md records **why** decisions were made — not just what was done.
 
 **Step 4 — Plan Review and Test Planning**
