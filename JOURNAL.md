@@ -42,3 +42,26 @@ File Management
 9. **리뷰 4인체제** — Goal Inspector(결과) + Architect(구조) + Validator(구현) + Joker(유저 관점 혁신). 조커는 상시 활성화.
 10. **전처리기 기반 조건부 로깅** — 그래픽 프로그램 상세 로그 필수, #ifdef/#endif로 한번에 전환. 검증 후 로그 제거하지 않고 조건부로 전환.
 11. **UI 디자인 HTML 프로토타입** — UI 포함 작업 시 코드 작성 전 브라우저 실행 가능한 HTML 프로토타입 작성 및 사용자 승인.
+
+## 2026-08-30 — New extension: auto-continue
+
+### Goal
+When the agent halts with **"Response was truncated before completion."**, auto-submit the
+user prompt `Continue if you hasn't completed your planned tasks yet.` on the user's behalf,
+resuming the task until complete (truncation ≠ user input).
+
+### Decision log
+| Decision | Rationale |
+| --- | --- |
+| Signal: `assistantMessage.stopReason === "length"` | Source-verified: this is the exact condition that renders the truncation string (assistant-message.js). |
+| Hook: `agent_settled` | Fires after SDK's own overflow/compact recovery finishes → no double-continuation; single clean decision point. |
+| Mechanism: `pi.sendUserMessage(prompt, { deliverAs: "followUp" })` | Runs a turn to completion; its own `agent_settled` continues the chain. Conditional prompt wording makes it safe when the turn already finished. |
+| Cap `maxAutoContinuations` default **256** | Re-entrant `agent_settled` would otherwise loop forever on a perpetually-truncating model. Configurable via `~/.pi/agent/auto-continue.json`. |
+| Detection: most recent assistant `stopReason` in branch | Skips user/tool/custom entries; handles assistant(length)+toolResult ordering correctly. |
+
+### Verification
+- Runtime logic tested (7/7 cases) against the real `SessionEntry`/`AgentMessage` shapes via
+  Node native type-stripping (no compiler installed in this repo).
+- Type bindings verified by inspection against installed `@earendil-works/pi-coding-agent` `.d.ts`:
+  `SessionEntry` export, `SessionMessageEntry.type === "message"`, `AgentMessage.role` discriminant,
+  `sendUserMessage`/`notify`/`agent_settled` signatures.
