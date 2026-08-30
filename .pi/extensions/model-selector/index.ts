@@ -3,6 +3,9 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
+/** Fallback context window (tokens) used when neither the server nor config provides one. */
+const DEFAULT_CONTEXT_WINDOW = 262144;
+
 /**
  * Generic Provider Selector Extension
  *
@@ -115,6 +118,15 @@ export default async function (pi: ExtensionAPI)
     // Expected OpenAI format: { data: [{ id: string, ... }], object: "list" }
     const models = data?.data ?? [];
 
+    // Log the parsed /v1/models information for diagnostics.
+    console.log(`[model-selector] /v1/models from ${primaryUrl}: ${models.length} model(s)`);
+    for (const m of models) {
+      console.log(
+        `[model-selector]   - id=${m.id}  owned_by=${m.owned_by ?? '-'}  ` +
+          `status=${m.status?.value ?? '-'}  max_model_len=${m.max_model_len ?? '-'}`,
+      );
+    }
+
     return models.map((m: any) => ({
       id: m.id,
       name: m.id,
@@ -122,9 +134,25 @@ export default async function (pi: ExtensionAPI)
       // OpenAI does not expose reasoning or vision flags; default to false.
       reasoning: false,
       vision: false,
-      // Context window is not provided; use a sensible default, but allow override.
-      context_window: typeof contextWindowOverride === 'number' ? contextWindowOverride : 128000,
+      // Resolve the effective context window. Precedence:
+      //   server max_model_len  >  config override (maxContextLength)  >  DEFAULT_CONTEXT_WINDOW.
+      // A vLLM/compatible server reports max_model_len, which is the source of truth.
+      context_window: resolveContextWindow(m.max_model_len, contextWindowOverride),
     }));
+  }
+
+  /**
+   * Resolve an effective context window in tokens.
+   * Precedence: server-reported max_model_len > config override > DEFAULT_CONTEXT_WINDOW.
+   */
+  function resolveContextWindow(serverMaxModelLen: unknown, override: number | undefined): number {
+    if (typeof serverMaxModelLen === 'number' && serverMaxModelLen > 0) return serverMaxModelLen;
+    if (typeof override === 'number' && override > 0) return override;
+    return DEFAULT_CONTEXT_WINDOW;
+  }
+
+  function isModelLoaded(status: any): boolean {
+    return typeof status === 'string' ? status === 'loaded' : status?.value === 'loaded';
   }
 
   // Helper to register a single provider (used at start and after context‑length changes)
@@ -153,19 +181,19 @@ export default async function (pi: ExtensionAPI)
           models: modelsData.map(m => ({
             id: m.id,
             name: m.name || m.id,
-            isLoaded: (typeof m.status === 'string' ? m.status === 'loaded' : m.status?.value === 'loaded'), // Track if model is loaded for sorting
+            isLoaded: isModelLoaded(m.status), // Track if model is loaded for sorting
             reasoning: m.reasoning || false,
             input: m.vision ? ["text", "image"] : ["text"],
             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-            contextWindow: m.context_window || 128000,
-            maxTokens: m.context_window || 1048576,
+            contextWindow: m.context_window,
+            maxTokens: m.context_window,
           })),
         });
 
         // Store loading status locally because pi.registerProvider might not preserve custom properties
         providerModelsMap[provider.id] = {};
         for (const m of modelsData) {
-          providerModelsMap[provider.id][m.id] = (typeof m.status === 'string' ? m.status === 'loaded' : m.status?.value === 'loaded');
+          providerModelsMap[provider.id][m.id] = isModelLoaded(m.status);
         }
 
         console.log(`Registered provider ${provider.id} with ${modelsData.length} models`);
