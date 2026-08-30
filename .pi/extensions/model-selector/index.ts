@@ -118,17 +118,17 @@ export default async function (pi: ExtensionAPI)
     // Expected OpenAI format: { data: [{ id: string, ... }], object: "list" }
     const models = data?.data ?? [];
 
-    // Emit a diagnostic summary through the room channel instead of terminal
-    // console.log, so it does not interfere with the TUI input/footer panels.
-    if (pi.room) {
-      const detail = models
-        .map(
-          (m: any) =>
-            `- id=${m.id}  owned_by=${m.owned_by ?? '-'}  status=${m.status?.value ?? '-'}  max_model_len=${m.max_model_len ?? '-'}`,
-        )
-        .join('\n');
-      await pi.room.speak(`[model-selector] /v1/models from ${primaryUrl}: ${models.length} model(s)\n${detail}`);
-    }
+    // Emit a diagnostic summary directly to the process stdout stream. During
+    // startup Pi rewrites process.stdout.write to route to the raw terminal
+    // stream (see output-guard.ts), so this appears at the terminal level
+    // (after the welcome) without touching the TUI input/footer panels.
+    const detail = models
+      .map(
+        (m: any) =>
+          `- id=${m.id}  owned_by=${m.owned_by ?? '-'}  status=${m.status?.value ?? '-'}  max_model_len=${m.max_model_len ?? '-'}`,
+      )
+      .join('\n');
+    process.stdout.write(`[model-selector] /v1/models from ${primaryUrl}: ${models.length} model(s)\n${detail}\n`);
 
     return models.map((m: any) => ({
       id: m.id,
