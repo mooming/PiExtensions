@@ -1,10 +1,16 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import * as fs from "fs";
 import * as path from "path";
-import * as os from "os";
 
 /** Fallback context window (tokens) used when neither the server nor config provides one. */
 const DEFAULT_CONTEXT_WINDOW = 262144;
+
+/**
+ * Per-request timeout for model discovery.
+ * Node's fetch silently ignores a `timeout` init property (only `signal` is honoured), so a
+ * stalled endpoint would otherwise block startup forever -- Pi awaits the extension factory.
+ */
+const DISCOVERY_TIMEOUT_MS = 5000;
 
 /**
  * Generic Provider Selector Extension
@@ -16,9 +22,11 @@ const DEFAULT_CONTEXT_WINDOW = 262144;
  */
 export default async function (pi: ExtensionAPI)
 {
-  // Load provider definitions from models.json (expected at ~/.pi/agent/models.json or project root)
+  // Load provider definitions from models.json.
+  // getAgentDir() is Pi's own resolver, so the location stays correct on every OS and
+  // honours PI_CODING_AGENT_DIR (hardcoding ~/.pi/agent here would silently miss it).
   const pathsToTry = [
-    path.join(os.homedir(), ".pi", "agent", "models.json"),
+    path.join(getAgentDir(), "models.json"),
     path.resolve(process.cwd(), "models.json"),
   ];
 
@@ -103,11 +111,11 @@ export default async function (pi: ExtensionAPI)
     // Try primary URL first, then fallback if it fails (e.g., provider doesn't use /v1 prefix).
     let response;
     try {
-      response = await fetch(primaryUrl, { headers, timeout: 5000 });
+      response = await fetch(primaryUrl, { headers, signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS) });
       if (!response.ok) throw new Error();
     } catch (e) {
       // Try fallback URL
-      response = await fetch(fallbackUrl, { headers, timeout: 5000 });
+      response = await fetch(fallbackUrl, { headers, signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS) });
       if (!response.ok) {
         throw new Error(`Failed to fetch models from ${primaryUrl} and fallback ${fallbackUrl}`);
       }
@@ -199,6 +207,63 @@ export default async function (pi: ExtensionAPI)
     await registerProvider(provider);
   }
 
+  /**
+   * Persist a selection as Pi's global default model.
+   *
+   * Since Pi 0.84.3, setModel() is session-scoped unless called with `{ persist: true }`,
+   * and ExtensionAPI.setModel() exposes no options at all -- so an extension can never ask
+   * Pi to save the default. We therefore write the very two keys Pi itself would write
+   * (settings-manager.ts setDefaultModelAndProvider), letting Pi resolve the model at startup.
+   *
+   * Pi guards this file with `proper-lockfile`, which an extension cannot resolve, so instead
+   * of locking we re-read immediately before writing and touch only those two keys. That keeps
+   * the stale window tiny and preserves every key we do not own.
+   *
+   * Failures are returned rather than logged: Pi leaves stdout/stderr unguarded in interactive
+   * mode, so console output here would draw over the TUI (the reason commit 5a33a9f landed).
+   *
+   * @returns null when the default is saved and reads back, otherwise the reason it was not.
+   */
+  function persistDefaultModel(providerId: string, modelId: string): string | null
+  {
+    const settingsPath = path.join(getAgentDir(), "settings.json");
+    try
+    {
+      let settings: Record<string, unknown>;
+      try
+      {
+        const raw = fs.readFileSync(settingsPath, "utf-8");
+        const parsed = raw.trim() ? JSON.parse(raw) : {};
+        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+        {
+          throw new Error("not a JSON object");
+        }
+        settings = parsed as Record<string, unknown>;
+      }
+      catch (e)
+      {
+        // Absent file is normal on a fresh install; anything else must not be clobbered.
+        if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+        settings = {};
+      }
+
+      settings.defaultProvider = providerId;
+      settings.defaultModel = modelId;
+      fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf-8");
+
+      // Confirm it landed: a read-only or concurrently rewritten file must not be reported as saved.
+      const readBack = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+      return readBack?.defaultProvider === providerId && readBack?.defaultModel === modelId
+        ? null
+        : `${settingsPath} was not updated`;
+    }
+    catch (e)
+    {
+      return `could not write ${settingsPath}: ${(e as Error).message}`;
+    }
+  }
+
   // Register a generic command to select a model from any registered provider
   pi.registerCommand("select-model",
     {
@@ -288,8 +353,20 @@ export default async function (pi: ExtensionAPI)
               ctx.ui.notify("Invalid number entered – using auto context length.", "error");
             }
           }
-          await pi.setModel(selected);
-          ctx.ui.notify(`Switched to ${selected.id} from ${providerChoice}`, "info");
+          const applied = await pi.setModel(selected);
+          if (!applied)
+          {
+            ctx.ui.notify(`Could not activate ${selected.id} from ${providerChoice} (no auth configured).`, "error");
+            return;
+          }
+          // pi.setModel() is session-only in Pi >= 0.84.3, so save the default ourselves.
+          const saveError = persistDefaultModel(providerChoice, selected.id);
+          ctx.ui.notify(
+            saveError === null
+              ? `Default model: ${providerChoice}/${selected.id}`
+              : `Switched to ${selected.id} for this session only - ${saveError}`,
+            saveError === null ? "info" : "warning",
+          );
         } else {
           ctx.ui.notify(`Model selection failed.`, "error");
         }
