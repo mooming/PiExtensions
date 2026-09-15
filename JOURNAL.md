@@ -65,3 +65,53 @@ resuming the task until complete (truncation ≠ user input).
 - Type bindings verified by inspection against installed `@earendil-works/pi-coding-agent` `.d.ts`:
   `SessionEntry` export, `SessionMessageEntry.type === "message"`, `AgentMessage.role` discriminant,
   `sendUserMessage`/`notify`/`agent_settled` signatures.
+
+## 2026-09-15 — model-selector: last selected model was not kept across restarts
+
+### Goal
+`/select-model` must survive a Pi restart, as it did before Pi 0.84.3.
+
+### Root cause (bisected, not inferred)
+| Evidence | Result |
+| --- | --- |
+| `setModel` in npm **0.84.2** | `async setModel(model)` → `setDefaultModelAndProvider(...)` **unconditionally** → worked. |
+| `setModel` in npm **0.84.3** | `async setModel(model, options = {})` → the write moved inside `if (options.persist)`. |
+| Extension-facing action | **Identical in both**: `setModel: async (model) => { await this.setModel(model) }` — passes no `options`, so `persist` is always `undefined`. |
+| `ExtensionAPI.setModel` | `(model: Model<any>) => Promise<boolean)` — no options parameter; `ExtensionAPI` has no settings surface at all. |
+| Pi changelog 0.84.3 (2026-08-24) | "Fixed `/model` and `/thinking` selections being persisted globally unless explicitly saved with Ctrl+S" — the UI gained Ctrl+S; extensions silently lost persistence. |
+| `settings.json` mtime | Sep 6 — unchanged through Sep 15 use; `defaultModel` frozen at a model the server no longer serves. |
+| Live `/v1/models` | Serves only `example-org/Example-Model-NVFP4`, so the stale default made `findInitialModel` step 3 fail **silently** (`restoreModelFromSession` warns; `findInitialModel` does not) → fallback to `anthropic/claude-opus-4-8`. |
+
+**None of the five commits under review caused this** — they were diagnostics churn plus `maxTokens`
+derivation. The regression lives in the dependency, which is why `git log` on this repo could never
+have shown it. The first diagnosis misattributed causality for exactly that reason; the user's
+"it used to work" was the missing premise.
+
+### Decision log
+| Decision | Rationale |
+| --- | --- |
+| Write `defaultProvider`/`defaultModel` into `settings.json` rather than keep private state | Restores the *exact* pre-0.84.3 behaviour and lets Pi resolve the model itself, so the right model is active from the first frame — no extra `model_change` transcript entry, no visible switch. |
+| Rejected: own state file + re-apply on `session_start` | Zero coupling to Pi's file and immune to a repeat of this class of change, but costs a visible model switch plus an extra session entry on every start. Kept as a documented fallback design. |
+| Re-read immediately before writing; touch only those 2 keys | Pi locks the file with `proper-lockfile`, which is **not resolvable from an extension** (verified `MODULE_NOT_FOUND`). Read-modify-write scoped to two keys is the strongest available mitigation; a collision needs a simultaneous Ctrl+S in `/model`. |
+| Never overwrite on parse failure / non-object / EACCES | A damaged config must produce a message, not data loss. Verified by test, including read-only (`0o444`). |
+| Return failure reasons instead of `console.warn` | `main.js:502-504` deliberately skips `takeOverStdout()` in interactive mode, so console output draws over the TUI — the exact problem commit 5a33a9f fixed. `notify` is both user-facing and render-safe. Added **zero** new console calls. |
+| Paths via `getAgentDir()` | Pi's resolver is a public export (`index.js:4`) and its loader aliases the package for extensions (`loader.js:48`), so the import works with no `node_modules`. Same file path on all three OSes and honours `PI_CODING_AGENT_DIR`, which the hardcoded `os.homedir()` path silently ignored. |
+| `AbortSignal.timeout()` instead of `fetch(…, { timeout })` | Proved by experiment on Node v26 (the bundle is `#!/usr/bin/env node`) that `timeout` in `RequestInit` is ignored — a stalled endpoint never settled. Startup hung indefinitely, twice, because Pi awaits the extension factory. |
+
+### Verification
+15/15 assertions driving the **real** extension under a stubbed `ExtensionAPI` + a live
+`/v1/models` server, via Node native type-stripping (no compiler in this repo; same approach as
+`auto-continue`). Covered: settings.json absent → created; unrelated keys (`theme`, `packages`,
+nested `terminal`) survive; stale default replaced; `setModel()` false → **no write** + error
+notify; corrupt JSON / `[1,2]` / read-only → left byte-identical + reason reported; empty file →
+recovered; provider list resolved from `getAgentDir()`; stalled endpoint bounded at **~10 s**
+(2 × 5 s for primary + fallback) instead of hanging.
+
+### Known limitations / follow-ups
+* Windows and Linux are **code-path reasoning, not executed tests**; only macOS + Node v26 verified.
+  A three-OS CI matrix would be the only way to claim coverage.
+* Not fixed (out of scope, deliberately): custom context length is still session-only; `8110a51`
+  left `maxTokens === contextWindow` when the server reports no `max_model_len` (zero output
+  headroom); `findInitialModel`'s silent fallback still hides provider-side model changes.
+* Pre-existing TUI risk left as-is: `console.log`/`console.warn` at `index.ts:198,201` run at
+  startup in interactive mode, same hazard described above.

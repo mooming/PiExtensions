@@ -9,7 +9,7 @@ A collection of useful extensions for **Pi Coding Agent** – small, friendly ad
   export default async function (pi: ExtensionAPI) { /* … */ }
   ```
 - **Available extensions**:
-  - `model-selector`: A gentle, generalized model selector. It reads a `models.json` file in `~/.pi/agent/`, discovers the providers you’ve listed, fetches their available models, and registers them with Pi. After that you can use the **/select‑model** command to pick a provider and a model from a friendly UI.
+  - `model-selector`: A gentle, generalized model selector. It reads a `models.json` file in `~/.pi/agent/`, discovers the providers you’ve listed, fetches their available models, and registers them with Pi. After that you can use the **/select‑model** command to pick a provider and a model from a friendly UI. Your choice is saved as Pi's default model, so it survives a restart (Pi ≥ 0.84.3 made `setModel()` session-scoped, which this extension works around).
   - `auto-continue`: Detects when the agent halts with **"Response was truncated before completion."** and automatically submits a continuation prompt on your behalf, so a cut‑off response resumes and finishes without you having to type “continue”. [Docs](.pi/extensions/auto-continue/README.md).
 
 ## How `model‑selector` works (in plain language)
