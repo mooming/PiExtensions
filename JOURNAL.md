@@ -107,6 +107,14 @@ notify; corrupt JSON / `[1,2]` / read-only → left byte-identical + reason repo
 recovered; provider list resolved from `getAgentDir()`; stalled endpoint bounded at **~10 s**
 (2 × 5 s for primary + fallback) instead of hanging.
 
+Additional checks run afterwards:
+* Real `pi --mode rpc` + `get_state` against a sandboxed agent dir proved the persisted default is
+  what drives startup resolution — and reproduced the original symptom as an A/B control: a stale
+  `defaultModel` resolves to `anthropic/claude-opus-4-8`, the saved one to `my-vllm/…`.
+* Real `pi` startup against the user's **live** `settings.json` resolved the saved model.
+* **User-confirmed interactively**: `/select-model` now keeps the last selected model across
+  restarts, which closes the one path the stubbed suite could not exercise.
+
 ### Known limitations / follow-ups
 * Windows and Linux are **code-path reasoning, not executed tests**; only macOS + Node v26 verified.
   A three-OS CI matrix would be the only way to claim coverage.
