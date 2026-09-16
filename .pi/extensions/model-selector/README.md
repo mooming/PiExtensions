@@ -47,11 +47,7 @@ This extension therefore writes the same two keys Pi itself would write — `def
     "my-vllm": {
       "baseUrl": "http://vllm.example:8000",      // /v1 is appended if absent
       "apiKey": "optional",
-      "maxContextLength": 262144,                 // optional override
-      "vision": true,                             // optional: every model here takes images
-      "models": {                                 // optional per-model exceptions
-        "some-text-only-model": { "vision": false }
-      }
+      "maxContextLength": 262144                  // optional override
     },
     "Local Ollama": { "baseUrl": "http://127.0.0.1:11434/v1" }
   }
@@ -71,34 +67,40 @@ This extension therefore writes the same two keys Pi itself would write — `def
 `/select-model` also offers a per-session custom context length. Note that this override is
 **session-only** — it is not written to disk, so use `/set-context-limit` to make it permanent.
 
-### Vision and reasoning
+### Model capabilities: use Pi's `modelOverrides`, not this extension
 
-`vision` decides whether Pi sends image content to the model at all. Pi checks
-`model.input.includes("image")` and, when it is absent, replaces every image with
-`(image omitted: model does not support images)` — a wrong `false` does not error, it just blinds
-the model. `reasoning` opts the model into Pi sending `reasoning_effort`; leave it off unless you
-have confirmed the server accepts that parameter.
-
-Precedence, most specific first:
-
-1. `models["<model id>"].vision` from `models.json`
-2. provider-level `vision` from `models.json`
-3. `supported_modalities` reported by the server — only vLLM ≥ 0.9 emits it for multimodal
-   checkpoints, and only for those; llama.cpp, Ollama and LM Studio report nothing
-4. `false`
-
-An explicit `false` at either config level overrides a server that over-reports. Because nothing
-in `/v1/models` reliably reports vision, **declare it yourself** for models you know can see:
+This extension registers models as text-only (`input: ["text"]`, `reasoning: false`), because
+`/v1/models` reports no modality or reasoning flags — vLLM omits them, and llama.cpp, Ollama and
+LM Studio report nothing. That is not a dead end: **Pi overrides whatever this extension
+registers.** Its `modelOverrides` layer is applied last, after extension model replacement, and
+sets `input` outright (`provider-composer.js`: `input: override.input ?? model.input`). So to give
+a model eyes:
 
 ```jsonc
 "my-vllm": {
   "baseUrl": "http://localhost:8000",
-  "models": { "Qwen/Qwen2.5-VL-7B-Instruct": { "vision": true } }
+  "modelOverrides": {
+    "Qwen/Qwen2.5-VL-7B-Instruct": { "input": ["text", "image"] }
+  }
 }
 ```
 
-Per-model entries are preferred over a provider-level `true`: a vLLM instance swaps checkpoints,
-and a stale provider-level claim would keep promising vision on a text-only model.
+Without `"image"` in `input`, Pi does not fail — it silently replaces every image with
+`(image omitted: model does not support images)`. Confirm the model actually sees before declaring
+it: post one `content` array with a `text` part and an `image_url` part straight to
+`/v1/chat/completions` and check the answer describes the picture. The model id must match the
+server's id exactly, org prefix and casing included.
+
+The same key takes `reasoning`, `contextWindow`, `maxTokens`, `cost` and `name`, so a context
+window that vLLM misreports can be corrected there instead of through `/set-context-limit`.
+
+> **`models` is Pi's key, not yours.** Pi validates this file with its own schema
+> (`model-config.js`: `ProviderConfigSchema`), where `models` must be an **array** of model
+> definitions. Adding a `models` object — or any capability key that collides with a Pi key — does
+> not just get ignored: validation fails, and Pi then drops **every** provider in the file. Harmless
+> extra scalar keys like `maxContextLength` are tolerated; structural keys Pi already owns are not.
+> Check a rewrite with `python3 -c "import json;json.load(open('models.json'))"` for syntax, and
+> remember that passing JSON is not the same as passing Pi's schema.
 
 ## Requirements
 
@@ -115,5 +117,6 @@ and a stale provider-level claim would keep promising vision on a text-only mode
 | `Switched to … for this session only - …` | `settings.json` could not be written (permissions, or it is not valid JSON). The message names the reason; the current session still uses your model. |
 | Starts on a different model than you picked | The saved `defaultModel` is no longer served by the provider — vLLM only serves what is loaded. Pi falls back **silently**; run `/select-model` again to re-save. |
 | `Failed to read models.json in …` | No config found. Create `models.json` in the agent directory or the project root. |
-| `(image omitted: model does not support images)` on a model that can see | The model is registered `input: ["text"]`. Declare `vision` in `models.json` (see **Vision and reasoning**) and restart — capability is resolved at provider registration, so `/reload` or a new session is required. |
-| `[vision]` missing in `/select-model` for a model you declared | The id in `models` must match the server's id exactly, including casing and the org prefix. |
+| `(image omitted: model does not support images)` on a model that can see | The model's effective `input` lacks `"image"`. Add it under `modelOverrides` (see **Model capabilities**) and reload — capability is resolved when the provider is composed, so `/reload` or a new session is required. |
+| `Invalid models.json schema: providers.<id>.models: must be array` | Something other than Pi's array of model definitions was written to `models`. That key belongs to Pi; per-model capability belongs to `modelOverrides`. While the file is invalid Pi loads **no** providers from it, so every provider seems to vanish. |
+| `[vision]` missing in `/select-model` for a model you declared | The `modelOverrides` key must match the server's model id exactly, including casing and the org prefix — or the file failed schema validation and was skipped entirely. |

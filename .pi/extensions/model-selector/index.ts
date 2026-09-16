@@ -12,15 +12,7 @@ const DEFAULT_CONTEXT_WINDOW = 262144;
  */
 const DISCOVERY_TIMEOUT_MS = 5000;
 
-/** A model's declared input modalities and reasoning support, as written in models.json. */
-type ModelCapability = {
-  /** Accepts image content. Drives Pi's `input: ["text", "image"]`. */
-  vision?: boolean;
-  /** Emits reasoning content, so Pi may request a thinking level. */
-  reasoning?: boolean;
-};
-
-/** One entry of models.json: a provider plus optional capability declarations. */
+/** One entry of models.json. */
 type ProviderDef = {
   id: string; // provider identifier, used as Pi provider ID
   baseUrl: string; // base URL without trailing slash, e.g., "http://localhost:1234"
@@ -28,11 +20,6 @@ type ProviderDef = {
   description?: string;
   // Optional maximum context length (tokens) for models from this provider.
   maxContextLength?: number;
-  // Capability default for every model this provider serves. See resolveCapabilities().
-  vision?: boolean;
-  reasoning?: boolean;
-  // Per-model exceptions, keyed by the exact model id the server reports.
-  models?: Record<string, ModelCapability>;
 };
 
 /**
@@ -42,6 +29,9 @@ type ProviderDef = {
  * For each provider it queries the standard `/v1/models` endpoint to discover
  * available models and registers them with Pi. It also registers a command
  * `select-model` that lets the user pick a provider and then a model.
+ *
+ * Capability flags (vision, reasoning, context window) belong to Pi's own `modelOverrides` layer
+ * in the same file, not to this extension. See README "Model capabilities".
  */
 export default async function (pi: ExtensionAPI)
 {
@@ -107,37 +97,10 @@ export default async function (pi: ExtensionAPI)
   // Map to store loading status for models: { [providerId]: { [modelId]: isLoaded } }
   const providerModelsMap: Record<string, Record<string, boolean>> = {};
 
-  /**
-   * Resolve what a model can actually ingest.
-   *
-   * Pi reads images only when `input` contains "image" (pi-ai transform-messages.js:
-   * `downgradeUnsupportedImages` replaces image blocks with a placeholder otherwise), so a wrong
-   * answer here is not cosmetic -- it silently blinds the model.
-   *
-   * `/v1/models` cannot be trusted as the sole source: vLLM reports `supported_modalities` for
-   * multimodal checkpoints but omits the field entirely for most builds, and llama.cpp,
-   * Ollama and LM Studio report nothing. Precedence, most specific first:
-   *
-   *   models.json `models["<id>"].vision`  >  provider-level `vision`  >  server-reported  >  false
-   *
-   * `??` (not `||`) so an explicit `false` can veto a server that over-reports.
-   */
-  function resolveCapabilities(model: any, provider: ProviderDef): Required<ModelCapability>
-  {
-    const declared: ModelCapability = provider.models?.[model?.id] ?? {};
-    const serverVision =
-      Array.isArray(model?.supported_modalities) && model.supported_modalities.includes("image");
-    return {
-      vision: declared.vision ?? provider.vision ?? serverVision,
-      reasoning: declared.reasoning ?? provider.reasoning ?? false,
-    };
-  }
-
   // Helper to fetch models from a generic provider using the OpenAI-compatible schema.
-  // Takes the whole provider definition: context length and capabilities are both per-provider config.
-  async function fetchProviderModels(provider: ProviderDef)
+  // Allows an optional contextWindowOverride to customize max context length per provider.
+  async function fetchProviderModels(baseUrl: string, apiKey?: string, contextWindowOverride?: number)
   {
-    const { baseUrl, apiKey, maxContextLength: contextWindowOverride } = provider;
     // Construct the models endpoint. If baseUrl already ends with "/v1", use it directly.
     const primaryUrl = baseUrl.replace(/\/*$/, "").endsWith("/v1")
       ? `${baseUrl.replace(/\/*$/, "")}/models`
@@ -168,20 +131,22 @@ export default async function (pi: ExtensionAPI)
     // Expected OpenAI format: { data: [{ id: string, ... }], object: "list" }
     const models = data?.data ?? [];
 
-    return models.map((m: any) => {
-      const capabilities = resolveCapabilities(m, provider);
-      return {
-        id: m.id,
-        name: m.id,
-        status: m.status?.value || "unloaded", // Track if model is loaded
-        reasoning: capabilities.reasoning,
-        vision: capabilities.vision,
-        // Resolve the effective context window. Precedence:
-        //   server max_model_len  >  config override (maxContextLength)  >  DEFAULT_CONTEXT_WINDOW.
-        // A vLLM/compatible server reports max_model_len, which is the source of truth.
-        context_window: resolveContextWindow(m.max_model_len, contextWindowOverride),
-      };
-    });
+    return models.map((m: any) => ({
+      id: m.id,
+      name: m.id,
+      status: m.status?.value || "unloaded", // Track if model is loaded
+      // Deliberately not discoverable here: `/v1/models` reports no modality or reasoning flags,
+      // and inventing a config key for them would collide with Pi's own `models.json` schema.
+      // Pi's `modelOverrides` layer is applied on top of everything this extension registers, so
+      // `{ "modelOverrides": { "<id>": { "input": ["text", "image"] } } }` in models.json is what
+      // enables images -- and it reaches the [vision] tag below through ctx.modelRegistry.
+      reasoning: false,
+      vision: false,
+      // Resolve the effective context window. Precedence:
+      //   server max_model_len  >  config override (maxContextLength)  >  DEFAULT_CONTEXT_WINDOW.
+      // A vLLM/compatible server reports max_model_len, which is the source of truth.
+      context_window: resolveContextWindow(m.max_model_len, contextWindowOverride),
+    }));
   }
 
   /**
@@ -201,7 +166,11 @@ export default async function (pi: ExtensionAPI)
   // Helper to register a single provider (used at start and after context‑length changes)
   async function registerProvider(provider: ProviderDef) {
     try {
-      const modelsData = await fetchProviderModels(provider);
+      const modelsData = await fetchProviderModels(
+        provider.baseUrl,
+        provider.apiKey,
+        provider.maxContextLength
+      );
 
       if (modelsData && modelsData.length > 0) {
         const normalizedBase = provider.baseUrl.replace(/\/*$/, "");
@@ -217,7 +186,6 @@ export default async function (pi: ExtensionAPI)
             name: m.name || m.id,
             isLoaded: isModelLoaded(m.status), // Track if model is loaded for sorting
             reasoning: m.reasoning || false,
-            // What makes Pi send image content at all -- see resolveCapabilities().
             input: m.vision ? ["text", "image"] : ["text"],
             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
             contextWindow: m.context_window,
