@@ -12,6 +12,29 @@ const DEFAULT_CONTEXT_WINDOW = 262144;
  */
 const DISCOVERY_TIMEOUT_MS = 5000;
 
+/** A model's declared input modalities and reasoning support, as written in models.json. */
+type ModelCapability = {
+  /** Accepts image content. Drives Pi's `input: ["text", "image"]`. */
+  vision?: boolean;
+  /** Emits reasoning content, so Pi may request a thinking level. */
+  reasoning?: boolean;
+};
+
+/** One entry of models.json: a provider plus optional capability declarations. */
+type ProviderDef = {
+  id: string; // provider identifier, used as Pi provider ID
+  baseUrl: string; // base URL without trailing slash, e.g., "http://localhost:1234"
+  apiKey?: string; // optional API key for the provider
+  description?: string;
+  // Optional maximum context length (tokens) for models from this provider.
+  maxContextLength?: number;
+  // Capability default for every model this provider serves. See resolveCapabilities().
+  vision?: boolean;
+  reasoning?: boolean;
+  // Per-model exceptions, keyed by the exact model id the server reports.
+  models?: Record<string, ModelCapability>;
+};
+
 /**
  * Generic Provider Selector Extension
  *
@@ -30,14 +53,7 @@ export default async function (pi: ExtensionAPI)
     path.resolve(process.cwd(), "models.json"),
   ];
 
-  let providerDefs: Array<{
-    id: string; // provider identifier, used as Pi provider ID
-    baseUrl: string; // base URL without trailing slash, e.g., "http://localhost:1234"
-    apiKey?: string; // optional API key for the provider
-    description?: string;
-    // Optional maximum context length (tokens) for models from this provider.
-    maxContextLength?: number;
-  }> = [];
+  let providerDefs: ProviderDef[] = [];
   let foundPath: string | null = null;
 
   async function loadProviderDefs()
@@ -91,11 +107,37 @@ export default async function (pi: ExtensionAPI)
   // Map to store loading status for models: { [providerId]: { [modelId]: isLoaded } }
   const providerModelsMap: Record<string, Record<string, boolean>> = {};
 
-  // Helper to fetch models from a generic provider using the OpenAI-compatible schema.
-
-// Allows an optional contextWindowOverride to customize max context length per provider.
-  async function fetchProviderModels(baseUrl: string, apiKey?: string, contextWindowOverride?: number)
+  /**
+   * Resolve what a model can actually ingest.
+   *
+   * Pi reads images only when `input` contains "image" (pi-ai transform-messages.js:
+   * `downgradeUnsupportedImages` replaces image blocks with a placeholder otherwise), so a wrong
+   * answer here is not cosmetic -- it silently blinds the model.
+   *
+   * `/v1/models` cannot be trusted as the sole source: vLLM reports `supported_modalities` for
+   * multimodal checkpoints but omits the field entirely for most builds, and llama.cpp,
+   * Ollama and LM Studio report nothing. Precedence, most specific first:
+   *
+   *   models.json `models["<id>"].vision`  >  provider-level `vision`  >  server-reported  >  false
+   *
+   * `??` (not `||`) so an explicit `false` can veto a server that over-reports.
+   */
+  function resolveCapabilities(model: any, provider: ProviderDef): Required<ModelCapability>
   {
+    const declared: ModelCapability = provider.models?.[model?.id] ?? {};
+    const serverVision =
+      Array.isArray(model?.supported_modalities) && model.supported_modalities.includes("image");
+    return {
+      vision: declared.vision ?? provider.vision ?? serverVision,
+      reasoning: declared.reasoning ?? provider.reasoning ?? false,
+    };
+  }
+
+  // Helper to fetch models from a generic provider using the OpenAI-compatible schema.
+  // Takes the whole provider definition: context length and capabilities are both per-provider config.
+  async function fetchProviderModels(provider: ProviderDef)
+  {
+    const { baseUrl, apiKey, maxContextLength: contextWindowOverride } = provider;
     // Construct the models endpoint. If baseUrl already ends with "/v1", use it directly.
     const primaryUrl = baseUrl.replace(/\/*$/, "").endsWith("/v1")
       ? `${baseUrl.replace(/\/*$/, "")}/models`
@@ -126,18 +168,20 @@ export default async function (pi: ExtensionAPI)
     // Expected OpenAI format: { data: [{ id: string, ... }], object: "list" }
     const models = data?.data ?? [];
 
-    return models.map((m: any) => ({
-      id: m.id,
-      name: m.id,
-      status: m.status?.value || "unloaded", // Track if model is loaded
-      // OpenAI does not expose reasoning or vision flags; default to false.
-      reasoning: false,
-      vision: false,
-      // Resolve the effective context window. Precedence:
-      //   server max_model_len  >  config override (maxContextLength)  >  DEFAULT_CONTEXT_WINDOW.
-      // A vLLM/compatible server reports max_model_len, which is the source of truth.
-      context_window: resolveContextWindow(m.max_model_len, contextWindowOverride),
-    }));
+    return models.map((m: any) => {
+      const capabilities = resolveCapabilities(m, provider);
+      return {
+        id: m.id,
+        name: m.id,
+        status: m.status?.value || "unloaded", // Track if model is loaded
+        reasoning: capabilities.reasoning,
+        vision: capabilities.vision,
+        // Resolve the effective context window. Precedence:
+        //   server max_model_len  >  config override (maxContextLength)  >  DEFAULT_CONTEXT_WINDOW.
+        // A vLLM/compatible server reports max_model_len, which is the source of truth.
+        context_window: resolveContextWindow(m.max_model_len, contextWindowOverride),
+      };
+    });
   }
 
   /**
@@ -155,18 +199,9 @@ export default async function (pi: ExtensionAPI)
   }
 
   // Helper to register a single provider (used at start and after context‑length changes)
-  async function registerProvider(provider: {
-    id: string;
-    baseUrl: string;
-    apiKey?: string;
-    maxContextLength?: number;
-  }) {
+  async function registerProvider(provider: ProviderDef) {
     try {
-      const modelsData = await fetchProviderModels(
-        provider.baseUrl,
-        provider.apiKey,
-        provider.maxContextLength
-      );
+      const modelsData = await fetchProviderModels(provider);
 
       if (modelsData && modelsData.length > 0) {
         const normalizedBase = provider.baseUrl.replace(/\/*$/, "");
@@ -182,6 +217,7 @@ export default async function (pi: ExtensionAPI)
             name: m.name || m.id,
             isLoaded: isModelLoaded(m.status), // Track if model is loaded for sorting
             reasoning: m.reasoning || false,
+            // What makes Pi send image content at all -- see resolveCapabilities().
             input: m.vision ? ["text", "image"] : ["text"],
             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
             contextWindow: m.context_window,
@@ -308,11 +344,15 @@ export default async function (pi: ExtensionAPI)
           return (bLoaded ? 1 : 0) - (aLoaded ? 1 : 0);
         });
 
-        // Display models with [loaded] tag for loaded models
-        const modelOptions = available.map(m => {
+        // One label builder, used for both the list and the lookup back -- re-parsing tags
+        // separately is how a new tag would silently break selection.
+        const modelLabelOf = (m: any) => {
           const isLoaded = providerModelsMap[providerChoice]?.[m.id] ?? false;
-          return `${isLoaded ? "[loaded] " : ""}${m.name} (${m.id})`;
-        });
+          const hasVision = Array.isArray(m.input) && m.input.includes("image");
+          return `${isLoaded ? "[loaded] " : ""}${hasVision ? "[vision] " : ""}${m.name} (${m.id})`;
+        };
+
+        const modelOptions = available.map(modelLabelOf);
 
         const modelLabel = await ctx.ui.select(
           `Select Model from ${providerChoice}`,
@@ -322,12 +362,7 @@ export default async function (pi: ExtensionAPI)
           return;
         }
 
-        // Remove the [loaded] tag if present to find the model
-        const selected = available.find(m => {
-          const isLoaded = providerModelsMap[providerChoice]?.[m.id] ?? false;
-          const label = isLoaded ? `[loaded] ${m.name} (${m.id})` : `${m.name} (${m.id})`;
-          return label === modelLabel;
-        });
+        const selected = available.find(m => modelLabelOf(m) === modelLabel);
         if (selected) {
           // Ask user whether to keep the auto‑detected context window or set a custom one
           const contextOption = await ctx.ui.select("Set max context length?", ["Auto", "Custom"]);
@@ -435,7 +470,7 @@ export default async function (pi: ExtensionAPI)
           // Unregister the old provider definition before re‑registering with the new context length
           pi.unregisterProvider(chosen);
           // Re‑register the provider so the new context length takes effect immediately
-          await registerProvider(provider);
+          if (provider) await registerProvider(provider);
           ctx.ui.notify(`Set max context length for ${chosen} to ${value}`, "info");
         } catch (e) {
           ctx.ui.notify(`Failed to write back to ${foundPath}: ${e}`, "error");

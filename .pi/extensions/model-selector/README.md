@@ -9,7 +9,7 @@ vLLM / llama.cpp / Ollama / LM Studio or any other OpenAI-compatible server.
 
 | Command | What it does |
 | --- | --- |
-| `/select-model` | Pick a provider, then a model. Loaded models sort first and are tagged `[loaded]`. The choice becomes Pi's **default model** and survives a restart. |
+| `/select-model` | Pick a provider, then a model. Loaded models sort first and are tagged `[loaded]`; models that accept images are tagged `[vision]`. The choice becomes Pi's **default model** and survives a restart. |
 | `/set-context-limit` | Set a max-context-length override for a provider, persisted back into `models.json` as `maxContextLength`. |
 
 ## Does the selection survive a restart?
@@ -47,7 +47,11 @@ This extension therefore writes the same two keys Pi itself would write — `def
     "my-vllm": {
       "baseUrl": "http://vllm.example:8000",      // /v1 is appended if absent
       "apiKey": "optional",
-      "maxContextLength": 262144                  // optional override
+      "maxContextLength": 262144,                 // optional override
+      "vision": true,                             // optional: every model here takes images
+      "models": {                                 // optional per-model exceptions
+        "some-text-only-model": { "vision": false }
+      }
     },
     "Local Ollama": { "baseUrl": "http://127.0.0.1:11434/v1" }
   }
@@ -67,6 +71,35 @@ This extension therefore writes the same two keys Pi itself would write — `def
 `/select-model` also offers a per-session custom context length. Note that this override is
 **session-only** — it is not written to disk, so use `/set-context-limit` to make it permanent.
 
+### Vision and reasoning
+
+`vision` decides whether Pi sends image content to the model at all. Pi checks
+`model.input.includes("image")` and, when it is absent, replaces every image with
+`(image omitted: model does not support images)` — a wrong `false` does not error, it just blinds
+the model. `reasoning` opts the model into Pi sending `reasoning_effort`; leave it off unless you
+have confirmed the server accepts that parameter.
+
+Precedence, most specific first:
+
+1. `models["<model id>"].vision` from `models.json`
+2. provider-level `vision` from `models.json`
+3. `supported_modalities` reported by the server — only vLLM ≥ 0.9 emits it for multimodal
+   checkpoints, and only for those; llama.cpp, Ollama and LM Studio report nothing
+4. `false`
+
+An explicit `false` at either config level overrides a server that over-reports. Because nothing
+in `/v1/models` reliably reports vision, **declare it yourself** for models you know can see:
+
+```jsonc
+"my-vllm": {
+  "baseUrl": "http://localhost:8000",
+  "models": { "Qwen/Qwen2.5-VL-7B-Instruct": { "vision": true } }
+}
+```
+
+Per-model entries are preferred over a provider-level `true`: a vLLM instance swaps checkpoints,
+and a stale provider-level claim would keep promising vision on a text-only model.
+
 ## Requirements
 
 * Pi (extension API with `registerCommand` / `registerProvider`)
@@ -82,3 +115,5 @@ This extension therefore writes the same two keys Pi itself would write — `def
 | `Switched to … for this session only - …` | `settings.json` could not be written (permissions, or it is not valid JSON). The message names the reason; the current session still uses your model. |
 | Starts on a different model than you picked | The saved `defaultModel` is no longer served by the provider — vLLM only serves what is loaded. Pi falls back **silently**; run `/select-model` again to re-save. |
 | `Failed to read models.json in …` | No config found. Create `models.json` in the agent directory or the project root. |
+| `(image omitted: model does not support images)` on a model that can see | The model is registered `input: ["text"]`. Declare `vision` in `models.json` (see **Vision and reasoning**) and restart — capability is resolved at provider registration, so `/reload` or a new session is required. |
+| `[vision]` missing in `/select-model` for a model you declared | The id in `models` must match the server's id exactly, including casing and the org prefix. |
