@@ -36,6 +36,17 @@ A collection of useful extensions for **Pi Coding Agent** – small, friendly ad
 ```
 Place this file at `~/.pi/agent/models.json`. The extension will automatically pick it up the next time Pi starts.
 
+## Project system prompt and its readable page
+
+Two files hold the same working agreement, in two forms:
+
+| File | Read by | Form |
+| --- | --- | --- |
+| `.pi/SYSTEM.md` | the agent | plain text: naming rules, the four-phase execution protocol, the review roles, the report format |
+| `SYSTEM.html` | you | the same content laid out for a person — real tables, two hand-drawn inline SVG diagrams, and an **English / 한국어** toggle at the top right. Open it with `open SYSTEM.html`; it needs no network access and no build step |
+
+> **Always keep the two files synchronized.** Whenever you change `.pi/SYSTEM.md`, change `SYSTEM.html` in the same commit, so both files always carry the same content. A rule, a step, or a report section that exists in only one of them is documented half — the agent would follow it and the reader would never see it, or the other way around. The page is a rendering, so a sentence may be tidied there and a Korean counterpart added: match the content, not the characters.
+
 ## Development
 - **Types** – import `ExtensionAPI` from `@earendil-works/pi-coding-agent` for proper typing.
 - **Verification** – simply start Pi (`pi`) and ensure your extension loads without errors. Use the interactive UI to test the `/select‑model` command.
