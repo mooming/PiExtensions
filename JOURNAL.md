@@ -157,3 +157,12 @@ practitioners actually use worldwide, so they must stay.
 | Table row reworded to "No **invented** acronyms or code names" | The unqualified ban would have forbidden the exact terms the user considers ordinary vocabulary. "Invented" is the operative word, and the 58-column limit forced the loss of "out" from "write terms out in full" — meaning is unchanged. |
 | Exception bullet rewritten to state two exceptions, naming `UI`, `GUI`, `HTML` as worked examples | "Widely known" is unfalsifiable for a model reading the rule; "does that field's own documentation and code use the short form" is checkable against that field's literature. The longer expansion existing somewhere is explicitly ruled out as a reason to expand. |
 | Left the first guidance bullet untouched | It already read "Never invent shorthand", so it was consistent with the narrowed rule before this amendment — editing it again would be churn. |
+
+### Follow-up decision — the review role named Joker stays
+The user rejected renaming the fourth review role: the card-game name is intuitive, so it stays.
+
+| Item | Decision and reason |
+| --- | --- |
+| `Joker` | Unchanged. The ban is scoped to *private* code names — names that only make sense to whoever coined them. `Joker` carries a publicly readable connotation (the seat that argues the user's side and pushes for the unexpected improvement), so no memorised mapping is needed and the rule is not violated. Renaming a review role would also move the review's behaviour, a second reason not to touch it. |
+| My earlier report flagging `Joker` as a violation | Retracted as a false positive. I tested the name against "is it a literal description of the job" instead of against the rule's actual test, which is "does the reader need a mapping held in memory". That misapplied test is the reason this row exists — without it, the next pass would flag the same name again. |
+| Criterion for this file's own vocabulary | A name's etymology is irrelevant to the rule; only whether it self-explains to the reader matters. So `Joker`, `Goal Inspector`, `Architect`, `Validator` all stand, while the flowchart node letters `A` through `F` remain genuine violations — pure symbols whose meaning exists only in the diagram that defines them. |
