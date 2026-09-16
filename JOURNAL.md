@@ -147,3 +147,13 @@ to rewrite the shorthand already present in that file.
   not introduced here.
 - `git diff`: 4 insertions, 0 deletions — no other line touched. Carriage-return bytes: 0 before
   and after (the editing tool matched an adjacent line fuzzily; confirmed it changed nothing).
+
+### Amendment, same day — established short forms are legal
+The user rejected the blanket reading: `UI`, `GUI`, `HTML` are not invented shorthand but the names
+practitioners actually use worldwide, so they must stay.
+
+| Change | Reason |
+| --- | --- |
+| Table row reworded to "No **invented** acronyms or code names" | The unqualified ban would have forbidden the exact terms the user considers ordinary vocabulary. "Invented" is the operative word, and the 58-column limit forced the loss of "out" from "write terms out in full" — meaning is unchanged. |
+| Exception bullet rewritten to state two exceptions, naming `UI`, `GUI`, `HTML` as worked examples | "Widely known" is unfalsifiable for a model reading the rule; "does that field's own documentation and code use the short form" is checkable against that field's literature. The longer expansion existing somewhere is explicitly ruled out as a reason to expand. |
+| Left the first guidance bullet untouched | It already read "Never invent shorthand", so it was consistent with the narrowed rule before this amendment — editing it again would be churn. |
