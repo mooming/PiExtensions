@@ -221,3 +221,38 @@ English start; a language the reader clicks is still remembered for the next vis
 | Deliberate remaining exception | An explicit click is honoured on later visits. If the reader clicked Korean once, the page still opens in Korean by design — this is a remembered choice, not a default. |
 | Verification | Behaviour tested in Node against a stubbed browser: five cases — Korean browser / English browser / no browser language reported / Korean remembered / nonsense stored. All open in the expected language, exactly one toggle button is lit, and clicking Korean switches and stores. The markup already declares English, so nothing flashes in Korean before the script runs. |
 | Harness note | Two of the first five reported failures were the test's own bugs: it read the language and button state *after* its synthetic click, so the click had already overwritten them. Snapshots at open time fixed the readings; the page never regressed. |
+
+## 2026-09-16 — four-role review of the change set, before pushing
+Ran the review panel the project's own protocol requires. Goal Inspector, Architect and Validator
+each ran as an independent agent against the diff; the Joker seat could not run as an agent (first a
+context-length failure, then an authentication failure on the substitute model), so that seat was
+filled by the author — its findings carry less independence and are labelled as such.
+
+### Defects found and fixed
+| Lens | Finding | Fix |
+| --- | --- | --- |
+| Validator | Style sheet targeted `nav.toc` while the markup is `<nav><ul class="toc">`, so the contents row never received its rules and would have printed as a bulleted vertical list | Selectors retargeted to `ul.toc` and `.toc a`, including the print rule |
+| Architect, Validator | Heading "Detailed criteria for the four reviewers" emitted after the bullets it names, leaving an empty section | Heading moved above its list |
+| Validator | Each phase card's border was drawn inside its own clipping region, so the outer half of the stroke and the corner joins were cut | Border drawn last, outside the clip; the clip now only shapes the coloured header band |
+| Validator | Diagram accessible names were hard-coded English `aria-label`, so a Korean reader with assistive technology heard English | Both diagrams now named through their bilingual captions via `aria-labelledby`; the verification diagram gained a caption |
+| Validator, Architect | Style sheet carried `.note`, `.rule`, and three colour variables nothing used | Removed; the status cells now carry a real tint, so status is not colour-only-on-emoji |
+| Architect | The ten-loops-or-fifteen-minutes limit, stated once in the source, appeared four times in the page | Reduced to two: the phase card that shows the loop, and the source-faithful table caption |
+| Validator | "When code was changed" narrowed the source's "When Changes Were Made" | Widened to "When something was changed" |
+| Validator | Legend label overran its box by about three pixels | Legend row wording shortened, box widened by six |
+| Goal Inspector | The file-management table rows for the prompt pair, and promoting "Speak like a deep thinker…" to a bullet, were additions nobody asked for — the user had narrowed request one to "add a statement" | Both reverted in the plain text and in the page, so the pair stayed in step while scope stayed where the user put it |
+| Goal Inspector | `AGENTS.md` stated the fidelity clause twice | One clause remains |
+| Author's own check | The fix that demoted the bullet left a duplicate list close | Removed; markup walk clean |
+
+### Findings accepted rather than fixed
+| Lens | Finding | Why left |
+| --- | --- | --- |
+| Architect | The naming rule occupies roughly fifteen percent of the prompt's words while the other five principle rows carry no bullets at all | True imbalance. Shortening means dropping either the verbatim-identifier exception or the legality test for short forms, both of which the user asked for in this session. Left long on purpose; offered as a separate decision |
+| Architect | The class token `i18n` on 320 elements carries no style rule | It marks a paired element for the reader and for the pairing checker, which switches on `en` and `ko` |
+| Architect, Validator | Diagram key, captions and section navigation have no counterpart in the plain text | The synchronization rule now says explicitly that reader affordances the plain text cannot hold live in the page alone |
+| Joker (author-filled) | Nothing detects drift: a future edit to the plain text that forgets the page is invisible | Needs a checker script, which is a new artifact. Proposed to the user rather than added unasked |
+
+### Process deviations disclosed
+* No `.Plans/PLAN_*.md` was written for either task, although the protocol's step three calls for one.
+  `JOURNAL.md` carries the decisions and reasons; the plan files were skipped.
+* Diagram layout is verified by measurement, not by a rendered screenshot: no browser is installed
+  here. Font metrics vary by machine, so a label could sit tighter than measured.

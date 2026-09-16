@@ -12,8 +12,6 @@
   --paper: #ffffff;
   --paper-tint: #f6f9fb;
   --accent: #0f6d63;
-  --blue: #3f6ea5;
-  --blue-tint: #eef4fd;
   --amber: #b9821b;
   --amber-tint: #fff6e6;
   --green: #2f7d52;
@@ -52,21 +50,20 @@ header.bar {
 
 /* ---------- layout ---------- */
 main { max-width: 1000px; margin: 0 auto; padding: 32px max(20px, 4vw) 72px; }
-nav.toc {
+ul.toc {
   display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 0 0 30px; padding: 0; list-style: none;
 }
-nav.toc a {
+.toc a {
   display: block; font-size: 12.5px; text-decoration: none; color: var(--ink-soft);
   border: 1px solid var(--line); border-radius: 7px; padding: 4px 10px; background: var(--paper-tint);
 }
-nav.toc a:hover { color: var(--accent); border-color: var(--accent); }
+.toc a:hover { color: var(--accent); border-color: var(--accent); }
 section { margin: 0 0 42px; scroll-margin-top: 78px; }
 h1 { font-size: 30px; line-height: 1.3; letter-spacing: -0.02em; margin: 0 0 14px; }
 h2 { font-size: 20px; letter-spacing: -0.01em; margin: 0 0 6px; padding-top: 4px; }
 h2 .tag { font: 600 11px/1 var(--mono); color: var(--accent); letter-spacing: .08em; text-transform: uppercase; }
 h3 { font-size: 15.5px; margin: 26px 0 10px; color: var(--ink); }
 p.lede { font-size: 16.5px; color: #23303c; border-left: 3px solid var(--accent); padding: 2px 0 2px 16px; margin: 0 0 34px; }
-.rule { height: 1px; background: var(--line); border: 0; margin: 42px 0; }
 
 /* ---------- tables ---------- */
 table { width: 100%; border-collapse: collapse; margin: 12px 0 14px; font-size: 14.5px; }
@@ -76,18 +73,12 @@ thead th { background: var(--paper-tint); font-size: 12.5px; letter-spacing: .04
 tbody th { font-weight: 650; white-space: nowrap; }
 tbody tr:hover { background: #fbfdfe; }
 td.num { font-family: var(--mono); font-size: 13px; color: var(--accent); white-space: nowrap; width: 3ch; }
-.pass { color: var(--green); font-weight: 700; }
-.warn { color: var(--amber); font-weight: 700; }
+.pass { text-align: center; color: var(--green); background: var(--green-tint); font-weight: 700; }
+.warn { text-align: center; color: var(--amber); background: var(--amber-tint); font-weight: 700; }
 
 /* ---------- lists, notes, code ---------- */
 ul.plain { margin: 10px 0 0; padding-left: 20px; }
 ul.plain li { margin: 0 0 7px; }
-.note {
-  font-size: 14px; color: #2b3b48; background: var(--amber-tint);
-  border: 1px solid #efd9ac; border-left: 3px solid var(--amber);
-  border-radius: 8px; padding: 10px 14px; margin: 12px 0 0;
-}
-.note b { color: #7d570f; }
 figure { margin: 18px 0 0; }
 svg { width: 100%; height: auto; display: block; }
 figcaption { font-size: 12.5px; color: var(--ink-soft); margin-top: 10px; }
@@ -104,7 +95,7 @@ pre code { background: none; padding: 0; }
 .card h4 i { font: 600 11px/1 var(--mono); color: var(--accent); font-style: normal; margin-right: 8px; }
 .card p { margin: 0; color: var(--ink-soft); font-size: 14px; }
 footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color: var(--ink-soft); font-size: 13px; }
-@media print { header.bar { position: static; } nav.toc { display: none; } }
+@media print { header.bar { position: static; } ul.toc { display: none; } }
 </style>
 </head>
 <body>
@@ -128,7 +119,7 @@ footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color:
 
 <main>
 
-<nav aria-label="Contents">
+<nav aria-label="Contents / 차례">
   <ul class="toc">
     <li><a href="#core-principles"><span class="i18n en">Core principles</span><span class="i18n ko">핵심 원칙</span></a></li>
     <li><a href="#execution-protocol"><span class="i18n en">Execution protocol</span><span class="i18n ko">실행 절차</span></a></li>
@@ -183,8 +174,8 @@ footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color:
   <li><span class="i18n en">Provide concise, direct answers with zero fluff. Skip all introductory phrases, conversational filler, and concluding remarks — output only the raw answer or code immediately.</span><span class="i18n ko">답은 짧고 직접적으로, 군더더기 없이. 서두와 대화용 말과 마무리 인사 없이, 답이나 코드를 바로 출력한다.</span></li>
   <li><span class="i18n en">Never invent shorthand when communicating: no acronyms, no initials, no private code names for things, roles, steps, or diagram nodes. Name each one with the words that say what it is, so the reader never has to hold a mapping in memory. If a long name is unavoidable, write it in full the first time, declare the plain short phrase you will use for it, and use only that phrase afterwards.</span><span class="i18n ko">소통에서 축약을 스스로 만들지 않는다: 사물, 역할, 단계, 그림의 상자에 대해 약어, 머리글자, 내부에서만 통하는 암호식 이름을 쓰지 않는다. 각각이 무엇인지 그대로 말하는 말로 부른다 — 읽는 사람이 대응표를 기억에 담지 않아도 되도록. 긴 이름이 불가피하면 처음에 전부 풀어 쓰고, 뒤에 쓰기로 한 짧은 말을 선언한 뒤에는 그 말만 쓴다.</span></li>
   <li><span class="i18n en">Two exceptions apply. Identifiers the reader must reproduce exactly — file paths, commands, configuration keys, code symbols, log level names — stay verbatim, because spelling those out would make them unusable. Short forms the field itself always uses — user interface as UI, graphical user interface as GUI, HyperText Markup Language as HTML — are standard vocabulary, not invented shorthand, so keep them as they are. The test is whether that field's own documentation and code use the short form, not whether a longer expansion exists.</span><span class="i18n ko">예외는 두 가지다. 읽는 사람이 글자 그대로 옮겨야 하는 식별자 — 파일 경로, 명령, 설정 키, 코드 기호, 로그 등급 이름 — 는 원문 그대로 둔다. 풀어 쓰면 쓸 수 없게 되기 때문이다. 그 분야 자체가 늘 짧게 쓰는 형태 — user interface는 UI, graphical user interface는 GUI, HyperText Markup Language는 HTML — 는 표준 어휘이지 스스로 만든 축약이 아니므로 그대로 둔다. 판단 기준은 "그 분야의 공식 문서와 코드가 짧은 형태를 쓰는가"이지 "더 긴 풀림말이 어딘가에 존재하는가"가 아니다.</span></li>
-  <li><span class="i18n en">Speak like a deep thinker who talks simple but essential always.</span><span class="i18n ko">깊이 생각하는 사람처럼, 언제나 단순하지만 핵심만을 말하라.</span></li>
 </ul>
+<p><span class="i18n en">Speak like a deep thinker who talks simple but essential always.</span><span class="i18n ko">깊이 생각하는 사람처럼, 언제나 단순하지만 핵심만을 말하라.</span></p>
 </section>
 
 <!-- --------------------------------------------------------------- -->
@@ -192,7 +183,7 @@ footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color:
 <h2><span class="tag">02</span> <span class="i18n en">Execution protocol — eleven steps in four phases</span><span class="i18n ko">실행 절차 — 네 단계, 열한 걸음</span></h2>
 
 <figure>
-<svg viewBox="0 0 980 262" role="img" aria-label="Four execution phases, eleven steps, flowing left to right, with a repeat loop inside the third phase">
+<svg viewBox="0 0 980 262" role="img" aria-labelledby="phaseCaption">
   <defs>
     <marker id="arrowPhase" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#5b7285"/>
@@ -203,10 +194,9 @@ footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color:
     <clipPath id="clipPhase4"><rect x="760" y="24" width="210" height="172" rx="12"/></clipPath>
   </defs>
 
-  <g clip-path="url(#clipPhase1)">
-    <rect x="10" y="24" width="210" height="172" fill="#ffffff" stroke="#c6d2dc"/>
-    <rect x="10" y="24" width="210" height="38" fill="#e7effa"/>
-  </g>
+  <rect x="10" y="24" width="210" height="172" rx="12" fill="#ffffff"/>
+  <g clip-path="url(#clipPhase1)"><rect x="10" y="24" width="210" height="38" fill="#e7effa"/></g>
+  <rect x="10" y="24" width="210" height="172" rx="12" fill="none" stroke="#c6d2dc"/>
   <text class="i18n en" x="115" y="40" text-anchor="middle" font-size="11.5" font-weight="700" fill="#2f5f8f" letter-spacing=".06em">PHASE 1 · STEPS 1–2</text>
   <text class="i18n ko" x="115" y="40" text-anchor="middle" font-size="11.5" font-weight="700" fill="#2f5f8f" letter-spacing=".02em">1단계 · 걸음 1–2</text>
   <text class="i18n en" x="115" y="56" text-anchor="middle" font-size="12.5" font-weight="650" fill="#16232f">Goal definition</text>
@@ -218,10 +208,9 @@ footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color:
   <text class="i18n en" x="115" y="150" text-anchor="middle" font-size="10.5" fill="#2f5f8f">gate: questions, then confirmation</text>
   <text class="i18n ko" x="115" y="150" text-anchor="middle" font-size="10.5" fill="#2f5f8f">관문: 질문과 확인이 먼저</text>
 
-  <g clip-path="url(#clipPhase2)">
-    <rect x="260" y="24" width="210" height="172" fill="#ffffff" stroke="#c6d2dc"/>
-    <rect x="260" y="24" width="210" height="38" fill="#efeafa"/>
-  </g>
+  <rect x="260" y="24" width="210" height="172" rx="12" fill="#ffffff"/>
+  <g clip-path="url(#clipPhase2)"><rect x="260" y="24" width="210" height="38" fill="#efeafa"/></g>
+  <rect x="260" y="24" width="210" height="172" rx="12" fill="none" stroke="#c6d2dc"/>
   <text class="i18n en" x="365" y="40" text-anchor="middle" font-size="11.5" font-weight="700" fill="#5a4a8a" letter-spacing=".06em">PHASE 2 · STEPS 3–5</text>
   <text class="i18n ko" x="365" y="40" font-size="11.5" font-weight="700" fill="#5a4a8a" text-anchor="middle" letter-spacing=".02em">2단계 · 걸음 3–5</text>
   <text class="i18n en" x="365" y="56" text-anchor="middle" font-size="12.5" font-weight="650" fill="#16232f">Planning</text>
@@ -235,10 +224,9 @@ footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color:
   <text class="i18n en" x="365" y="150" text-anchor="middle" font-size="10.5" fill="#5a4a8a">gate: no approval, no build</text>
   <text class="i18n ko" x="365" y="150" text-anchor="middle" font-size="10.5" fill="#5a4a8a">관문: 승인 없이는 착수 없음</text>
 
-  <g clip-path="url(#clipPhase3)">
-    <rect x="510" y="24" width="210" height="172" fill="#ffffff" stroke="#c6d2dc"/>
-    <rect x="510" y="24" width="210" height="38" fill="#fdeee0"/>
-  </g>
+  <rect x="510" y="24" width="210" height="172" rx="12" fill="#ffffff"/>
+  <g clip-path="url(#clipPhase3)"><rect x="510" y="24" width="210" height="38" fill="#fdeee0"/></g>
+  <rect x="510" y="24" width="210" height="172" rx="12" fill="none" stroke="#c6d2dc"/>
   <text class="i18n en" x="615" y="40" text-anchor="middle" font-size="11.5" font-weight="700" fill="#9a5a24" letter-spacing=".06em">PHASE 3 · STEPS 6–9</text>
   <text class="i18n ko" x="615" y="40" text-anchor="middle" font-size="11.5" font-weight="700" fill="#9a5a24" letter-spacing=".02em">3단계 · 걸음 6–9</text>
   <text class="i18n en" x="615" y="56" text-anchor="middle" font-size="12.5" font-weight="650" fill="#16232f">Execution and verification</text>
@@ -254,10 +242,9 @@ footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color:
   <text class="i18n en" x="615" y="180" text-anchor="middle" font-size="10.5" fill="#9a5a24">loop: 10 repeats · 15 minutes</text>
   <text class="i18n ko" x="615" y="180" text-anchor="middle" font-size="10.5" fill="#9a5a24">반복: 10회 · 15분</text>
 
-  <g clip-path="url(#clipPhase4)">
-    <rect x="760" y="24" width="210" height="172" fill="#ffffff" stroke="#c6d2dc"/>
-    <rect x="760" y="24" width="210" height="38" fill="#e9f6ee"/>
-  </g>
+  <rect x="760" y="24" width="210" height="172" rx="12" fill="#ffffff"/>
+  <g clip-path="url(#clipPhase4)"><rect x="760" y="24" width="210" height="38" fill="#e9f6ee"/></g>
+  <rect x="760" y="24" width="210" height="172" rx="12" fill="none" stroke="#c6d2dc"/>
   <text class="i18n en" x="865" y="40" text-anchor="middle" font-size="11.5" font-weight="700" fill="#2f7d52" letter-spacing=".06em">PHASE 4 · STEPS 10–11</text>
   <text class="i18n ko" x="865" y="40" text-anchor="middle" font-size="11.5" font-weight="700" fill="#2f7d52" letter-spacing=".02em">4단계 · 걸음 10–11</text>
   <text class="i18n en" x="865" y="56" text-anchor="middle" font-size="12.5" font-weight="650" fill="#16232f">Reporting and next step</text>
@@ -278,9 +265,9 @@ footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color:
   <text class="i18n en" x="490" y="240" text-anchor="middle" font-size="11" fill="#4f6577">Plans live in .Plans/PLAN_[task-name].md · every decision is recorded in JOURNAL.md · code changes require Git.</text>
   <text class="i18n ko" x="490" y="240" text-anchor="middle" font-size="11" fill="#4f6577">계획은 .Plans/PLAN_[task-name].md 에, 결정은 JOURNAL.md 에, 코드 변경에는 Git 이 필요하다.</text>
 </svg>
-<figcaption>
-  <span class="i18n en">Phases two and three hold gates: the plan needs explicit approval before any building starts, and verification repeats until it passes, up to ten times or fifteen minutes.</span>
-  <span class="i18n ko">2단계와 3단계에는 관문이 있다: 계획은 명시적 승인 전에는 착수하지 않고, 검증은 통과할 때까지 최대 10회 또는 15분까지 반복한다.</span>
+<figcaption id="phaseCaption">
+  <span class="i18n en">Phases two and three hold gates: the plan needs explicit approval before any building starts, and verification repeats until it passes.</span>
+  <span class="i18n ko">2단계와 3단계에는 관문이 있다: 계획은 명시적 승인 전에는 착수하지 않고, 검증은 통과할 때까지 반복한다.</span>
 </figcaption>
 </figure>
 
@@ -344,7 +331,7 @@ footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color:
 <h2><span class="tag">03</span> <span class="i18n en">Verification flow</span><span class="i18n ko">검증 흐름</span></h2>
 
 <figure>
-<svg viewBox="0 0 740 528" role="img" aria-label="Verification flow: execute plan, then verify; pass goes to the final report, fail goes to error analysis, root cause, fix, and back to verification">
+<svg viewBox="0 0 740 528" role="img" aria-labelledby="verificationCaption">
   <defs>
     <marker id="arrowFlow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#5b7285"/>
@@ -404,7 +391,7 @@ footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color:
   </g>
 
   <g>
-    <rect x="500" y="300" width="220" height="148" rx="12" fill="#f6f9fb" stroke="#d9e2ea"/>
+    <rect x="500" y="300" width="226" height="136" rx="12" fill="#f6f9fb" stroke="#d9e2ea"/>
     <text class="i18n en" x="516" y="322" font-size="11" font-weight="700" fill="#4f6577" letter-spacing=".06em">DIAGRAM KEY</text>
     <text class="i18n ko" x="516" y="322" font-size="11" font-weight="700" fill="#4f6577" letter-spacing=".06em">그림의 표시</text>
     <g font-size="11.5" fill="#33475a">
@@ -415,12 +402,14 @@ footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color:
       <rect x="516" y="388" width="16" height="12" rx="3" fill="#edf7f1" stroke="#2f7d52"/>
       <text class="i18n en" x="542" y="398">End of the task</text><text class="i18n ko" x="542" y="398">작업 종료</text>
       <path d="M516,416 h16" stroke="#b9821b" stroke-width="1.8" stroke-dasharray="4 3" fill="none"/>
-      <text class="i18n en" x="542" y="426">Back to verification</text><text class="i18n ko" x="542" y="426">검증으로 회귀</text>
+      <text class="i18n en" x="542" y="426">Repeat loop</text><text class="i18n ko" x="542" y="426">반복 고리</text>
     </g>
-    <text class="i18n en" x="516" y="440" font-size="10.5" fill="#4f6577">Up to ten loops or fifteen minutes.</text>
-    <text class="i18n ko" x="516" y="440" font-size="10.5" fill="#4f6577">최대 10번 또는 15분까지.</text>
   </g>
 </svg>
+<figcaption id="verificationCaption">
+  <span class="i18n en">After the plan is executed, verification either passes, and the final report follows, or fails, and the errors are analysed, the root cause found, and a fix applied. The dashed loop sends the work back to verification, up to ten times or fifteen minutes.</span>
+  <span class="i18n ko">계획을 실행한 뒤 검증해서 통과하면 최종 보고서를 내고, 실패하면 오류를 분석하고 근본 원인을 규명해 수정을 적용한다. 점선 고리는 작업을 검증으로 되돌려며, 최대 10회 또는 15분까지 반복한다.</span>
+</figcaption>
 </figure>
 </section>
 
@@ -428,7 +417,7 @@ footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color:
 <section id="review-process">
 <h2><span class="tag">04</span> <span class="i18n en">Review process</span><span class="i18n ko">검토 절차</span></h2>
 
-<h3><span class="i18n en">When code was changed — four reviewers</span><span class="i18n ko">코드를 변경했을 때 — 검토자 넷</span></h3>
+<h3><span class="i18n en">When something was changed — four reviewers</span><span class="i18n ko">변경한 것이 있을 때 — 검토자 넷</span></h3>
 <table>
   <thead><tr>
     <th><span class="i18n en">Reviewer</span><span class="i18n ko">검토자</span></th>
@@ -450,6 +439,8 @@ footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color:
         <td><span class="i18n en">Improvements, pain points</span><span class="i18n ko">개선점, 통증 지점</span></td></tr>
   </tbody>
 </table>
+
+<h3><span class="i18n en">Detailed criteria for the four reviewers</span><span class="i18n ko">검토자 넷의 상세 기준</span></h3>
 <ul class="plain">
   <li><span class="i18n en"><b>Goal Inspector:</b> verify against the original confirmed goal, check for scope creep.</span><span class="i18n ko"><b>Goal Inspector:</b> 처음에 확인된 목표에 비추어 검증하고, 범위 확대를 점검한다.</span></li>
   <li><span class="i18n en"><b>Architect:</b> identify redundant code, dead code, over-engineered abstractions; flag performance inefficiencies.</span><span class="i18n ko"><b>Architect:</b> 중복 코드, 죽은 코드, 과잉 추상을 찾고, 성능 비효율을 지적한다.</span></li>
@@ -457,7 +448,6 @@ footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color:
   <li><span class="i18n en"><b>Joker:</b> each suggestion must include (1) expected impact, (2) implementation cost, (3) recommendation.</span><span class="i18n ko"><b>Joker:</b> 모든 제안에 (1) 기대 효과, (2) 구현 비용, (3) 권고를 반드시 담는다.</span></li>
 </ul>
 
-<h3><span class="i18n en">Detailed criteria for the four reviewers</span><span class="i18n ko">검토자 넷의 상세 기준</span></h3>
 <h3><span class="i18n en">When nothing was changed — self-review</span><span class="i18n ko">변경한 것이 없을 때 — 자기 검토</span></h3>
 <table>
   <thead><tr><th><span class="i18n en">Reviewer</span><span class="i18n ko">검토자</span></th><th><span class="i18n en">Criteria</span><span class="i18n ko">기준</span></th></tr></thead>

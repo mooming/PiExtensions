@@ -13,7 +13,7 @@
 - **`.pi/SYSTEM.md`**: The project system prompt the agent is given — naming rules, the four-phase execution protocol, the review roles, and the report format. Plain text, because an agent reads it.
 - **`SYSTEM.html`**: The same content laid out for a person — real tables, two hand-drawn inline SVG diagrams, and an English / Korean toggle. It opens with no network access and no build step.
 - **Always keep both files synchronized**: whenever `.pi/SYSTEM.md` changes, update `SYSTEM.html` in the same commit, so the two files always carry the same content. A rule, a step, or a report section that lives in only one of them is documented half.
-  The page is a rendering, so a sentence may be tidied there and a Korean counterpart added — match the content, not the characters.
+  Match content, not characters: the page may tidy a sentence, add the Korean counterpart, and carry reader affordances plain text cannot hold — the diagram key, section navigation, the language toggle.
 
 ## Development
 - **Types**: Use `@earendil-works/pi-coding-agent` for the `ExtensionAPI`.
