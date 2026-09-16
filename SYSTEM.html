@@ -560,11 +560,11 @@ LOG_INFO("[Render] Drawing frame %d at (%d, %d)", frame, x, y);
     buttons.en.setAttribute('aria-pressed', String(language === 'en'));
     buttons.ko.setAttribute('aria-pressed', String(language === 'ko'));
   }
-  var stored = null;
-  try { stored = localStorage.getItem('SYSTEM-language'); } catch (error) {}
-  if (stored !== 'en' && stored !== 'ko') {
-    stored = (navigator.language || 'en').toLowerCase().indexOf('ko') === 0 ? 'ko' : 'en';
-  }
+  var stored = 'en';
+  try {
+    var choice = localStorage.getItem('SYSTEM-language');
+    if (choice === 'en' || choice === 'ko') { stored = choice; }
+  } catch (error) {}
   apply(stored);
   buttons.en.addEventListener('click', function () {
     apply('en');

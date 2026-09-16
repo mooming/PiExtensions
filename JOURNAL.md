@@ -210,3 +210,14 @@ No browser is installed in this environment, so nothing was verified by eye. Che
 * The page is a snapshot: it does not regenerate itself when `.pi/SYSTEM.md` changes.
 * The source file's logging example has an unclosed code fence, which the source still has; the page
   shows the snippet correctly regardless.
+
+### Amendment — the page now opens in English
+The user asked for English to be the default. Replaced the browser-language guess with a fixed
+English start; a language the reader clicks is still remembered for the next visit.
+
+| Point | Detail |
+| --- | --- |
+| What changed | The initial language is English unless the reader previously clicked a button. The earlier browser-language heuristic is gone, so a Korean browser no longer opens the page in Korean. |
+| Deliberate remaining exception | An explicit click is honoured on later visits. If the reader clicked Korean once, the page still opens in Korean by design — this is a remembered choice, not a default. |
+| Verification | Behaviour tested in Node against a stubbed browser: five cases — Korean browser / English browser / no browser language reported / Korean remembered / nonsense stored. All open in the expected language, exactly one toggle button is lit, and clicking Korean switches and stores. The markup already declares English, so nothing flashes in Korean before the script runs. |
+| Harness note | Two of the first five reported failures were the test's own bugs: it read the language and button state *after* its synthetic click, so the click had already overwritten them. Snapshots at open time fixed the readings; the page never regressed. |
