@@ -30,8 +30,9 @@ type ProviderDef = {
  * available models and registers them with Pi. It also registers a command
  * `select-model` that lets the user pick a provider and then a model.
  *
- * Capability flags (vision, reasoning, context window) belong to Pi's own `modelOverrides` layer
- * in the same file, not to this extension. See README "Model capabilities".
+ * Vision cannot come from `/v1/models` on most servers, so `/select-model` asks the user once and
+ * remembers it in this extension's own `model-capabilities.json` -- never in `models.json`, which
+ * Pi validates and would refuse to load. See README "Vision".
  */
 export default async function (pi: ExtensionAPI)
 {
@@ -97,9 +98,77 @@ export default async function (pi: ExtensionAPI)
   // Map to store loading status for models: { [providerId]: { [modelId]: isLoaded } }
   const providerModelsMap: Record<string, Record<string, boolean>> = {};
 
+  /** What a human has confirmed about one model. */
+  type StoredCapability = { vision?: boolean };
+  /** providerId -> modelId -> confirmed capability. */
+  type CapabilityStore = Record<string, Record<string, StoredCapability>>;
+
+  /**
+   * Where confirmed capabilities live: a file this extension owns, never models.json.
+   *
+   * models.json belongs to Pi, which validates it against ProviderConfigSchema and, on any
+   * mismatch, loads *no* providers at all -- one invented key there blinds every provider, not just
+   * the model it was about. And `/v1/models` answers the question for almost nobody: vLLM reports
+   * `supported_modalities` for multimodal checkpoints only (most builds omit it entirely), and
+   * llama.cpp, Ollama and LM Studio report nothing. So this is the one place left where "can this
+   * model see?" can be recorded without touching Pi's namespace.
+   *
+   * Deleting the file costs nothing: every model falls back to what the server reports, then to
+   * text-only, and `/select-model` asks again.
+   */
+  const capabilityStorePath = () => path.join(getAgentDir(), "model-capabilities.json");
+
+  function loadCapabilities(): CapabilityStore
+  {
+    try
+    {
+      const parsed = JSON.parse(fs.readFileSync(capabilityStorePath(), "utf-8"));
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+      return parsed as CapabilityStore;
+    }
+    catch
+    {
+      // Absent or corrupt is "nothing known yet", never an error worth interrupting a selection for.
+      return {};
+    }
+  }
+
+  /**
+   * Remember one model's capability.
+   *
+   * Read-modify-write of a file only this extension writes, so no lock is needed; the read-back
+   * guard means a write that silently does not land is reported rather than believed.
+   *
+   * @returns null when stored and read back, otherwise the reason it was not.
+   */
+  function saveCapability(providerId: string, modelId: string, cap: StoredCapability): string | null
+  {
+    const storePath = capabilityStorePath();
+    try
+    {
+      const store = loadCapabilities();
+      store[providerId] = { ...store[providerId], [modelId]: cap };
+      fs.mkdirSync(path.dirname(storePath), { recursive: true });
+      fs.writeFileSync(storePath, JSON.stringify(store, null, 2) + "\n", "utf-8");
+      return loadCapabilities()[providerId]?.[modelId]?.vision === cap.vision
+        ? null
+        : `${storePath} was not updated`;
+    }
+    catch (e)
+    {
+      return `could not write ${storePath}: ${(e as Error).message}`;
+    }
+  }
+
   // Helper to fetch models from a generic provider using the OpenAI-compatible schema.
-  // Allows an optional contextWindowOverride to customize max context length per provider.
-  async function fetchProviderModels(baseUrl: string, apiKey?: string, contextWindowOverride?: number)
+  // contextWindowOverride customizes max context length per provider; `declared` carries what the
+  // user confirmed for this provider's models (see loadCapabilities).
+  async function fetchProviderModels(
+    baseUrl: string,
+    apiKey?: string,
+    contextWindowOverride?: number,
+    declared: Record<string, StoredCapability> = {},
+  )
   {
     // Construct the models endpoint. If baseUrl already ends with "/v1", use it directly.
     const primaryUrl = baseUrl.replace(/\/*$/, "").endsWith("/v1")
@@ -131,22 +200,25 @@ export default async function (pi: ExtensionAPI)
     // Expected OpenAI format: { data: [{ id: string, ... }], object: "list" }
     const models = data?.data ?? [];
 
-    return models.map((m: any) => ({
-      id: m.id,
-      name: m.id,
-      status: m.status?.value || "unloaded", // Track if model is loaded
-      // Deliberately not discoverable here: `/v1/models` reports no modality or reasoning flags,
-      // and inventing a config key for them would collide with Pi's own `models.json` schema.
-      // Pi's `modelOverrides` layer is applied on top of everything this extension registers, so
-      // `{ "modelOverrides": { "<id>": { "input": ["text", "image"] } } }` in models.json is what
-      // enables images -- and it reaches the [vision] tag below through ctx.modelRegistry.
-      reasoning: false,
-      vision: false,
-      // Resolve the effective context window. Precedence:
-      //   server max_model_len  >  config override (maxContextLength)  >  DEFAULT_CONTEXT_WINDOW.
-      // A vLLM/compatible server reports max_model_len, which is the source of truth.
-      context_window: resolveContextWindow(m.max_model_len, contextWindowOverride),
-    }));
+    return models.map((m: any) => {
+      // Vision precedence: what the user confirmed > what this server reports > text only.
+      // Pi reads images only when `input` contains "image" (pi-ai transform-messages.js replaces
+      // image blocks with a placeholder otherwise), so a wrong answer silences the model quietly.
+      const serverVision =
+        Array.isArray(m.supported_modalities) && m.supported_modalities.includes("image");
+      return {
+        id: m.id,
+        name: m.id,
+        status: m.status?.value || "unloaded", // Track if model is loaded
+        // No server reports reasoning flags on this API; left false until Pi's own layer covers it.
+        reasoning: false,
+        vision: declared[m.id]?.vision ?? serverVision,
+        // Resolve the effective context window. Precedence:
+        //   server max_model_len  >  config override (maxContextLength)  >  DEFAULT_CONTEXT_WINDOW.
+        // A vLLM/compatible server reports max_model_len, which is the source of truth.
+        context_window: resolveContextWindow(m.max_model_len, contextWindowOverride),
+      };
+    });
   }
 
   /**
@@ -169,7 +241,8 @@ export default async function (pi: ExtensionAPI)
       const modelsData = await fetchProviderModels(
         provider.baseUrl,
         provider.apiKey,
-        provider.maxContextLength
+        provider.maxContextLength,
+        loadCapabilities()[provider.id] ?? {},
       );
 
       if (modelsData && modelsData.length > 0) {
@@ -332,6 +405,32 @@ export default async function (pi: ExtensionAPI)
 
         const selected = available.find(m => modelLabelOf(m) === modelLabel);
         if (selected) {
+          // Most servers cannot report vision, so ask once and remember it (see loadCapabilities).
+          // Pi silently drops image content for models registered text-only, which is exactly the
+          // failure this prompt exists to prevent -- and it is answered here, not in models.json.
+          const knownVision = loadCapabilities()[providerChoice]?.[selected.id]?.vision;
+          const visionAnswer = await ctx.ui.select(
+            `Accepts image input? ${
+              knownVision === undefined ? "(unknown: Pi will omit images)"
+              : knownVision ? "(currently yes)" : "(currently no)"}`,
+            knownVision === true ? ["Yes", "No"] : ["No", "Yes"],
+          );
+          if (!visionAnswer) {
+            return;
+          }
+          const vision = visionAnswer === "Yes";
+          if (vision !== knownVision) {
+            const capError = saveCapability(providerChoice, selected.id, { vision });
+            if (capError) ctx.ui.notify(capError, "warning");
+            // Re-register so the flag is in Pi's registry before the model is activated.
+            pi.unregisterProvider(providerChoice);
+            const def = providerDefs.find(p => p.id === providerChoice);
+            if (def) await registerProvider(def);
+          }
+          // The registry entry may have been replaced by that re-registration; work from the live one.
+          const active = (await ctx.modelRegistry.getAvailable())
+            .find(m => m.provider === providerChoice && m.id === selected.id) ?? selected;
+
           // Ask user whether to keep the auto‑detected context window or set a custom one
           const contextOption = await ctx.ui.select("Set max context length?", ["Auto", "Custom"]);
           if (contextOption === "Custom") {
@@ -351,23 +450,23 @@ export default async function (pi: ExtensionAPI)
             const value = Number(input);
             if (!isNaN(value) && value > 0) {
               // Override the model's contextWindow for this session only
-              selected.contextWindow = value;
+              active.contextWindow = value;
             } else {
               ctx.ui.notify("Invalid number entered – using auto context length.", "error");
             }
           }
-          const applied = await pi.setModel(selected);
+          const applied = await pi.setModel(active);
           if (!applied)
           {
-            ctx.ui.notify(`Could not activate ${selected.id} from ${providerChoice} (no auth configured).`, "error");
+            ctx.ui.notify(`Could not activate ${active.id} from ${providerChoice} (no auth configured).`, "error");
             return;
           }
           // pi.setModel() is session-only in Pi >= 0.84.3, so save the default ourselves.
-          const saveError = persistDefaultModel(providerChoice, selected.id);
+          const saveError = persistDefaultModel(providerChoice, active.id);
           ctx.ui.notify(
             saveError === null
-              ? `Default model: ${providerChoice}/${selected.id}`
-              : `Switched to ${selected.id} for this session only - ${saveError}`,
+              ? `Default model: ${providerChoice}/${active.id}`
+              : `Switched to ${active.id} for this session only - ${saveError}`,
             saveError === null ? "info" : "warning",
           );
         } else {

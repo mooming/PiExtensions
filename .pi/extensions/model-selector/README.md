@@ -9,7 +9,7 @@ vLLM / llama.cpp / Ollama / LM Studio or any other OpenAI-compatible server.
 
 | Command | What it does |
 | --- | --- |
-| `/select-model` | Pick a provider, then a model. Loaded models sort first and are tagged `[loaded]`; models that accept images are tagged `[vision]`. The choice becomes Pi's **default model** and survives a restart. |
+| `/select-model` | Pick a provider, then a model, then answer "Accepts image input?" (the remembered answer is preselected). Loaded models sort first and are tagged `[loaded]`; models that accept images are tagged `[vision]`. The choice becomes Pi's **default model** and survives a restart. |
 | `/set-context-limit` | Set a max-context-length override for a provider, persisted back into `models.json` as `maxContextLength`. |
 
 ## Does the selection survive a restart?
@@ -67,40 +67,41 @@ This extension therefore writes the same two keys Pi itself would write — `def
 `/select-model` also offers a per-session custom context length. Note that this override is
 **session-only** — it is not written to disk, so use `/set-context-limit` to make it permanent.
 
-### Model capabilities: use Pi's `modelOverrides`, not this extension
+### Vision: asked once, remembered in the extension's own file
 
-This extension registers models as text-only (`input: ["text"]`, `reasoning: false`), because
-`/v1/models` reports no modality or reasoning flags — vLLM omits them, and llama.cpp, Ollama and
-LM Studio report nothing. That is not a dead end: **Pi overrides whatever this extension
-registers.** Its `modelOverrides` layer is applied last, after extension model replacement, and
-sets `input` outright (`provider-composer.js`: `input: override.input ?? model.input`). So to give
-a model eyes:
+Pi reads images only when the model's `input` contains `"image"`; otherwise it silently replaces
+every image with `(image omitted: model does not support images)`. Nothing in `/v1/models` tells you
+which models qualify: vLLM reports `supported_modalities` for multimodal checkpoints only (most
+builds omit the field), and llama.cpp, Ollama and LM Studio report nothing at all. So the extension
+asks you, once, and remembers:
 
 ```jsonc
-"my-vllm": {
-  "baseUrl": "http://localhost:8000",
-  "modelOverrides": {
-    "Qwen/Qwen2.5-VL-7B-Instruct": { "input": ["text", "image"] }
-  }
+// <agent dir>/model-capabilities.json — written by /select-model, owned by this extension
+{
+  "my-vllm": { "Qwen/Qwen2.5-VL-7B-Instruct": { "vision": true } }
 }
 ```
 
-Without `"image"` in `input`, Pi does not fail — it silently replaces every image with
-`(image omitted: model does not support images)`. Confirm the model actually sees before declaring
-it: post one `content` array with a `text` part and an `image_url` part straight to
-`/v1/chat/completions` and check the answer describes the picture. The model id must match the
-server's id exactly, org prefix and casing included.
+Precedence: **what you answered** → **what the server reported** → `text only`. Answering **No**
+therefore vetoes a server that over-reports, and deleting the file is always safe: capabilities fall
+back to the server, then to text-only, and `/select-model` asks again.
 
-The same key takes `reasoning`, `contextWindow`, `maxTokens`, `cost` and `name`, so a context
-window that vLLM misreports can be corrected there instead of through `/set-context-limit`.
+To confirm a model really sees before answering, send one request with a `text` part and an
+`image_url` part directly to `/v1/chat/completions` and check the reply describes the picture.
 
-> **`models` is Pi's key, not yours.** Pi validates this file with its own schema
-> (`model-config.js`: `ProviderConfigSchema`), where `models` must be an **array** of model
-> definitions. Adding a `models` object — or any capability key that collides with a Pi key — does
-> not just get ignored: validation fails, and Pi then drops **every** provider in the file. Harmless
-> extra scalar keys like `maxContextLength` are tolerated; structural keys Pi already owns are not.
-> Check a rewrite with `python3 -c "import json;json.load(open('models.json'))"` for syntax, and
-> remember that passing JSON is not the same as passing Pi's schema.
+To change an answer, run `/select-model` on the same model, pick it again, and answer the other way
+— the provider is re-registered immediately.
+
+> **`models.json` stays Pi's.** This extension writes nothing into it, and you should not either for
+> this purpose. Pi validates that file against `ProviderConfigSchema` (`model-config.js`), where
+> `models` must be an **array** of model definitions: putting an object there does not get ignored,
+> it fails validation, and Pi then loads **no** providers from the file, so every provider seems to
+> have vanished. Unknown scalar keys such as `maxContextLength` are tolerated; keys Pi already owns
+> structurally are not. Pi does have its own per-model layer, `modelOverrides`
+> (`input: override.input ?? model.input`, applied after this extension), if you prefer config over
+> the file above — it is not needed here, and an error in that file costs every provider. Check any
+> hand-edit against Pi's schema, not merely `python3 -c "import json;json.load(...)"`: valid JSON is
+> not the same as valid config.
 
 ## Requirements
 
@@ -117,6 +118,6 @@ window that vLLM misreports can be corrected there instead of through `/set-cont
 | `Switched to … for this session only - …` | `settings.json` could not be written (permissions, or it is not valid JSON). The message names the reason; the current session still uses your model. |
 | Starts on a different model than you picked | The saved `defaultModel` is no longer served by the provider — vLLM only serves what is loaded. Pi falls back **silently**; run `/select-model` again to re-save. |
 | `Failed to read models.json in …` | No config found. Create `models.json` in the agent directory or the project root. |
-| `(image omitted: model does not support images)` on a model that can see | The model's effective `input` lacks `"image"`. Add it under `modelOverrides` (see **Model capabilities**) and reload — capability is resolved when the provider is composed, so `/reload` or a new session is required. |
-| `Invalid models.json schema: providers.<id>.models: must be array` | Something other than Pi's array of model definitions was written to `models`. That key belongs to Pi; per-model capability belongs to `modelOverrides`. While the file is invalid Pi loads **no** providers from it, so every provider seems to vanish. |
-| `[vision]` missing in `/select-model` for a model you declared | The `modelOverrides` key must match the server's model id exactly, including casing and the org prefix — or the file failed schema validation and was skipped entirely. |
+| `(image omitted: model does not support images)` on a model that can see | The model's `input` lacks `"image"`. Answer **Yes** to "Accepts image input?" in `/select-model`, then reload — capability is resolved when the provider is registered, so `/reload` or a new session is required. |
+| `[vision]` missing in `/select-model` for a model you answered Yes for | The answer is keyed by the exact model id the server reports, so a renamed or re-deployed checkpoint looks like a brand new model. Answer again for that id. |
+| `Invalid models.json schema: providers.<id>.models: must be array` | Something other than Pi's array of model definitions was written into `models` — a key this extension never writes. While the file is invalid Pi loads **no** providers from it, so every provider seems to vanish. |
