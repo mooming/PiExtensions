@@ -123,3 +123,27 @@ Additional checks run afterwards:
   headroom); `findInitialModel`'s silent fallback still hides provider-side model changes.
 * Pre-existing TUI risk left as-is: `console.log`/`console.warn` at `index.ts:198,201` run at
   startup in interactive mode, same hazard described above.
+
+## 2026-09-16 — SYSTEM.md: added the "Plain Naming" rule
+
+### Goal
+The user reported that acronyms and invented code names cause critical misreading and slow
+reading. The requested change was to *add a statement* to `.pi/SYSTEM.md` forbidding them — not
+to rewrite the shorthand already present in that file.
+
+### Decision log
+| Decision | Rationale |
+| --- | --- |
+| One new row in the Core Principles table plus two guidance bullets | The file's existing design is "table = the law, bullets = how to apply it". Adding to both keeps the rule enforceable without inventing a new section or touching the four-phase protocol. |
+| Rule wording covers "things, roles, steps, or diagram nodes" | Those are the four places this repository actually generated unreadable shorthand: a review role named after a card-game character, single-letter flowchart identifiers, lettered steps. Naming the places beats naming the abstract concept. |
+| "Write it in full the first time, declare the short phrase, then use only that phrase" | A blanket ban on abbreviations is unusable for genuinely long names, so the rule needs a legal path rather than an absolute prohibition. |
+| Exact identifiers kept verbatim as the single exception | File paths, commands, configuration keys, code symbols and log level names must be reproducible character-for-character. Spelling them out would leave the agent unable to act on the instruction — a worse failure than the one being fixed. |
+| Rejected: rewriting the shorthand already in SYSTEM.md | The user's follow-up narrowed scope, and that file is the live project system prompt — every rename inside it silently changes agent behaviour. Left as an explicit follow-up below. |
+
+### Verification
+- Alignment checked by script over all 12 framed tables: every block's rows share one display
+  width, except the pre-existing "Key Results" block (79 vs 81 columns, caused by the
+  warning-sign emoji counting as two). The same defect exists at the previous commit, so it was
+  not introduced here.
+- `git diff`: 4 insertions, 0 deletions — no other line touched. Carriage-return bytes: 0 before
+  and after (the editing tool matched an adjacent line fuzzily; confirmed it changed nothing).
