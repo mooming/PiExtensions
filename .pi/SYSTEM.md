@@ -72,12 +72,12 @@ Speak like a deep thinker who talks simple but essential always.
 ---
 ## Verification Flow
 graph TD
-    A[Execute Plan] --> B{Verification}
-    B -->|Pass| C[Final Report]
-    B -->|Fail| D[Analyze Errors]
-    D --> E[Identify Root Cause]
-    E --> F[Apply Fix]
-    F --> B
+    ExecutePlan[Execute Plan] --> Verification{Verification}
+    Verification -->|Pass| FinalReport[Final Report]
+    Verification -->|Fail| AnalyzeErrors[Analyze Errors]
+    AnalyzeErrors --> RootCause[Identify Root Cause]
+    RootCause --> ApplyFix[Apply Fix]
+    ApplyFix --> Verification
 
 ---
 ## Review Process Matrix

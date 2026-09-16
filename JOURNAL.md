@@ -166,3 +166,9 @@ The user rejected renaming the fourth review role: the card-game name is intuiti
 | `Joker` | Unchanged. The ban is scoped to *private* code names — names that only make sense to whoever coined them. `Joker` carries a publicly readable connotation (the seat that argues the user's side and pushes for the unexpected improvement), so no memorised mapping is needed and the rule is not violated. Renaming a review role would also move the review's behaviour, a second reason not to touch it. |
 | My earlier report flagging `Joker` as a violation | Retracted as a false positive. I tested the name against "is it a literal description of the job" instead of against the rule's actual test, which is "does the reader need a mapping held in memory". That misapplied test is the reason this row exists — without it, the next pass would flag the same name again. |
 | Criterion for this file's own vocabulary | A name's etymology is irrelevant to the rule; only whether it self-explains to the reader matters. So `Joker`, `Goal Inspector`, `Architect`, `Validator` all stand, while the flowchart node letters `A` through `F` remain genuine violations — pure symbols whose meaning exists only in the diagram that defines them. |
+
+### Verification of the flowchart identifier rename
+Checked that the rename changes names and nothing else, by resolving each arrow endpoint through
+the declaration map first (the way the diagram language itself resolves them) and comparing the
+resulting arrow sets: 6 arrows before, 6 after, both endpoint texts and both branch labels
+identical, box set identical, single-character identifiers reduced from six to zero.
