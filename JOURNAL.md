@@ -172,3 +172,41 @@ Checked that the rename changes names and nothing else, by resolving each arrow 
 the declaration map first (the way the diagram language itself resolves them) and comparing the
 resulting arrow sets: 6 arrows before, 6 after, both endpoint texts and both branch labels
 identical, box set identical, single-character identifiers reduced from six to zero.
+
+## 2026-09-16 — SYSTEM.html: bilingual readable version of the system prompt
+
+### Goal
+`.pi/SYSTEM.md` is read by the agent as plain text; a human opening it sees box-drawing tables and
+a diagram that never renders. The user asked for an HTML version in the project root with an
+English / Korean switch, and the diagrams drawn as SVG.
+
+### Decision log
+| Decision | Reason |
+| --- | --- |
+| Both languages carried in the document as sibling pairs, switched by one `data-lang` attribute on the root element | No rendering step and no content duplication in a second file: one document, one truth, and the switch is a single attribute write. Every English element has an adjacent Korean twin, which a checker enforces. |
+| Initial language taken from stored choice, else from the browser language | The reader should not have to pick every time; the choice persists across visits. |
+| Diagrams hand-drawn as inline SVG instead of loading a diagram library from the network | The file must open with no network and no build step. A library would also redraw the diagram from the same text the reader is already reading, adding nothing. |
+| Flowchart identifiers named with words (`ExecutePlan`, `Verify` …) inside the SVG markup | Follows the naming rule added earlier the same day: the markup a reader inspects should not need a symbol table. |
+| English side reworded where the source has a slip ("ask to users", contractions, slashed pairs like "tests/checklists") | The page is the readable rendering of the prompt, not a byte-for-byte transcription. Every deviation is listed to the user rather than left silent. |
+| Kept the source's short criteria column *and* its detailed criteria list for the reviewers | A first pass collapsed both into one column and dropped phrases such as "improvements, pain points"; the completeness checker caught it, so the table now mirrors the source structure. |
+
+### Verification
+No browser is installed in this environment, so nothing was verified by eye. Checks that did run:
+* Markup balance parsed with a real hyper text markup parser: no unclosed or crossed tags (one was found and fixed — the report-format section).
+* Language pairing: 160 English elements, 160 Korean elements, 160 adjacent pairs.
+* Self-containment: no network address, no script or style source, no import anywhere in the file.
+* Diagram geometry: every label's width estimated per character class (Korean syllables at one em,
+  Latin at about half) with font size inherited through groups, then checked against its own box,
+  against the canvas, and against every other label. Two overflows found and shortened; no overlap
+  remains in either language.
+* Style sheet: balanced braces, no malformed declaration, and every class used in markup is styled.
+* Content coverage against `.pi/SYSTEM.md`: all 124 content lines, with diagram syntax excluded,
+  reduce to deliberate rewordings only — no dropped content.
+* Toggle script: syntax-checked with Node; both button identifiers it queries exist.
+
+### Known limitations
+* Layout is verified by measurement, not by a rendered screenshot. Font metrics differ per machine,
+  so a reader on an unusual font set could see a tight label.
+* The page is a snapshot: it does not regenerate itself when `.pi/SYSTEM.md` changes.
+* The source file's logging example has an unclosed code fence, which the source still has; the page
+  shows the snippet correctly regardless.
