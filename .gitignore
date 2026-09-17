@@ -1,0 +1,18 @@
+# macOS Finder metadata
+.DS_Store
+
+# Pi runtime config: real endpoints, real API keys, real defaults.
+# The extension reads ./models.json from the project root, so a live copy can
+# land here by accident. Never commit any of it.
+models.json
+models-store.json
+settings.json
+settings.json.bak-*
+model-capabilities.json
+auto-continue.json
+auth.json
+!models.example.json
+
+# Local tool and editor state
+.vscode/
+*.swp
