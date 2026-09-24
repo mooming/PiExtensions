@@ -3,8 +3,8 @@ import * as fs from "fs";
 import * as path from "path";
 import {
   buildThinkingLevelMap,
+  PROBE_REQUEST_COUNT,
   probeThinkingCapability,
-  type ProbeVerdict,
   type ThinkingLevelMap,
 } from "./thinking-probe.ts";
 
@@ -136,10 +136,18 @@ export default async function (pi: ExtensionAPI)
     return values.length > 0 ? `yes (${values.join("/")})` : "yes";
   }
 
-  /** Pi level -> server value in Pi's level order, e.g. "off=none low=low high=xhigh". */
-  function describeThinkingLevelMap(map: ThinkingLevelMap): string
+  /** Pi level -> server value, grouped so the whole answer fits one status line. */
+  function summarizeThinkingLevelMap(map: ThinkingLevelMap): string
   {
-    return Object.entries(map).map(([level, value]) => `${level}=${value}`).join(" ");
+    const groups: { value: string; levels: string[] }[] = [];
+    for (const [level, value] of Object.entries(map))
+    {
+      const text = String(value);
+      const group = groups.find((entry) => entry.value === text);
+      if (group) group.levels.push(level);
+      else groups.push({ value: text, levels: [level] });
+    }
+    return groups.map((group) => `${group.levels.join("/")}=${group.value}`).join(" ");
   }
 
   /**
@@ -149,40 +157,49 @@ export default async function (pi: ExtensionAPI)
    * dialog that exist twice drift apart, and the failure mode here (a value the server rejects)
    * costs every later request.
    *
-   * @returns the payload to store, or null when the person cancelled the fallback dialog.
+   * Everything worth reporting arrives in ONE info notification, because Pi renders an info
+   * notification by replacing a single dim status line in place (`showStatus`,
+   * `interactive-mode.js:2878-2886`) rather than appending: two messages mean the first is never
+   * seen. A warning is used only for things that must stay on screen -- those are appended.
+   *
+   * The working indicator is deliberately not used. It is drawn only while the session is streaming
+   * (`setWorkingVisible` checks `session.isStreaming`, `interactive-mode.js:1663-1673`), and a command
+   * handler runs outside a turn, so it would show nothing for the ~5-30 s the probe takes.
+   *
+   * @returns the payload to store plus the one-line summary, or null when the person cancelled.
    */
   async function measureThinkingCapability(input: {
     baseUrl: string;
     apiKey?: string;
     modelId: string;
-  }, ctx: ExtensionCommandContext): Promise<StoredCapability | null>
+  }, ctx: ExtensionCommandContext): Promise<{ capability: StoredCapability; summary: string } | null>
   {
-    ctx.ui.setWorkingMessage?.("Measuring thinking levels: a few short requests to this server...");
-    let verdict: ProbeVerdict;
-    try
-    {
-      verdict = await probeThinkingCapability({
-        baseUrl: input.baseUrl,
-        apiKey: input.apiKey,
-        modelId: input.modelId,
-      });
-    }
-    finally
-    {
-      ctx.ui.setWorkingMessage?.(undefined);
-    }
+    ctx.ui.notify(
+      `Measuring ${input.modelId} thinking levels - ${PROBE_REQUEST_COUNT} short requests, a moment...`,
+      "info",
+    );
+    const verdict = await probeThinkingCapability({
+      baseUrl: input.baseUrl,
+      apiKey: input.apiKey,
+      modelId: input.modelId,
+    });
 
     if (verdict.status === "measured")
     {
-      ctx.ui.notify(
-        verdict.reasoning
-          ? `Measured thinking levels: ${describeThinkingLevelMap(verdict.thinkingLevelMap!)}`
-            + `${verdict.rejected.length ? `; server rejects ${verdict.rejected.join("/")}` : ""}`
-            + `${verdict.thinkingByDefault ? "; server thinks unless told not to" : ""}`
-          : "Measured: this server accepts no thinking level, so the model is registered without reasoning",
-        "info",
-      );
-      return { reasoning: verdict.reasoning, thinkingLevelMap: verdict.thinkingLevelMap };
+      if (!verdict.reasoning)
+      {
+        return {
+          capability: { reasoning: false, thinkingLevelMap: undefined },
+          summary: "no thinking level accepted by this server",
+        };
+      }
+      const summary = summarizeThinkingLevelMap(verdict.thinkingLevelMap!)
+        + `${verdict.rejected.length ? ` (server rejects ${verdict.rejected.join("/")})` : ""}`
+        + `${verdict.thinkingByDefault ? "; server thinks unless told not to" : ""}`;
+      return {
+        capability: { reasoning: verdict.reasoning, thinkingLevelMap: verdict.thinkingLevelMap },
+        summary,
+      };
     }
 
     // Nothing is guessed in the server's place: a map full of values it rejects breaks every request,
@@ -194,9 +211,15 @@ export default async function (pi: ExtensionAPI)
     );
     if (!presetLabel) return null;
     const preset = THINKING_PRESETS.find(p => p.label === presetLabel);
-    return preset?.onLevels
-      ? { reasoning: true, thinkingLevelMap: buildThinkingLevelMap(preset.onLevels, "none") ?? undefined }
-      : { reasoning: false, thinkingLevelMap: undefined };
+    if (!preset?.onLevels)
+    {
+      return { capability: { reasoning: false, thinkingLevelMap: undefined }, summary: "no thinking" };
+    }
+    const map = buildThinkingLevelMap(preset.onLevels, "none");
+    return {
+      capability: { reasoning: true, thinkingLevelMap: map ?? undefined },
+      summary: map ? `${summarizeThinkingLevelMap(map)} (chosen by you, not measured)` : "no thinking level",
+    };
   }
 
   /**
@@ -523,6 +546,9 @@ export default async function (pi: ExtensionAPI)
           // `reasoning` and `thinkingLevelMap` have to land in the same entry: the pair is the smallest
           // unit that cannot break a request.
           const pending: StoredCapability = {};
+          // Kept for the final status line: Pi shows one info notification by replacing the previous
+          // one, so the measurement result has to travel with the model-selection result.
+          let measuredSummary: string | undefined;
 
           // Most servers cannot report vision, so ask once and remember it (see loadCapabilities).
           // Pi silently drops image content for models registered text-only, which is exactly the
@@ -567,8 +593,9 @@ export default async function (pi: ExtensionAPI)
             if (!measured) {
               return;
             }
-            pending.reasoning = measured.reasoning;
-            pending.thinkingLevelMap = measured.thinkingLevelMap;
+            pending.reasoning = measured.capability.reasoning;
+            pending.thinkingLevelMap = measured.capability.thinkingLevelMap;
+            measuredSummary = measured.summary;
           } else if (thinkingAnswer === "No - text only") {
             if (known.reasoning !== false) {
               pending.reasoning = false;
@@ -619,10 +646,13 @@ export default async function (pi: ExtensionAPI)
           }
           // pi.setModel() is session-only in Pi >= 0.84.3, so save the default ourselves.
           const saveError = persistDefaultModel(providerChoice, active.id);
+          const thinkingNote = measuredSummary === undefined
+            ? ""
+            : ` | thinking: ${measuredSummary} - choose a level with /thinking`;
           ctx.ui.notify(
             saveError === null
-              ? `Default model: ${providerChoice}/${active.id}`
-              : `Switched to ${active.id} for this session only - ${saveError}`,
+              ? `Default model: ${providerChoice}/${active.id}${thinkingNote}`
+              : `Switched to ${active.id} for this session only - ${saveError}${thinkingNote}`,
             saveError === null ? "info" : "warning",
           );
         } else {
@@ -663,7 +693,7 @@ export default async function (pi: ExtensionAPI)
       if (!measured) {
         return;
       }
-      const capError = saveCapability(provider.id, model.id, measured);
+      const capError = saveCapability(provider.id, model.id, measured.capability);
       if (capError) ctx.ui.notify(capError, "warning");
 
       // Re-register, then re-bind the session to the live registry entry. The session keeps the Model
@@ -679,9 +709,10 @@ export default async function (pi: ExtensionAPI)
         return;
       }
       const applied = await pi.setModel(live);
+      // This replaces the "Measuring ..." line above it, which is how the result takes its place.
       ctx.ui.notify(
         applied
-          ? `Applied to ${provider.id}/${model.id} for this session.`
+          ? `Thinking levels for ${provider.id}/${model.id}: ${measured.summary}. Choose one with /thinking.`
           : `Saved, but ${model.id} could not be re-activated (no auth configured).`,
         applied ? "info" : "warning",
       );

@@ -10,7 +10,7 @@ vLLM / llama.cpp / Ollama / LM Studio or any other OpenAI-compatible server.
 | Command | What it does |
 | --- | --- |
 | `/select-model` | Pick a provider, then a model, then answer "Accepts image input?" and "Supports thinking?" (remembered answers are preselected; thinking is measured against the server rather than guessed). Loaded models sort first and are tagged `[loaded]`; models that accept images are tagged `[vision]`; models with thinking levels are tagged `[thinking]`. The choice becomes Pi's **default model** and survives a restart. |
-| `/measure-thinking-levels` | Re-measure the **current** model's thinking levels against its server and apply the result to this session — no re-selection, no re-asking about images or context length. Use it after changing the server's reasoning flags, swapping a checkpoint, or upgrading Ollama. |
+| `/measure-thinking-levels` | Re-measure the **current** model's thinking levels against its server and apply the result to this session — no re-selection, no re-asking about images or context length. Shows a status line while it probes, then one line with the resulting levels and a pointer to `/thinking`. Use it after changing the server's reasoning flags, swapping a checkpoint, or upgrading Ollama. |
 | `/set-context-limit` | Set a max-context-length override for a provider, persisted back into `models.json` as `maxContextLength`. |
 
 ## Does the selection survive a restart?
@@ -146,6 +146,16 @@ server rejects breaks every request.
 
 Cost: eight tiny requests, once per model id, then remembered. A cold local model made it take ~26 s
 on Ollama, ~5 s on a remote vLLM.
+
+**What you see on screen.** Pi renders `ui.notify(..., "info")` by *replacing* one dim status line
+(`showStatus`, `interactive-mode.js:2878-2886`) and only *appends* warnings and errors, so each command
+says everything in a single info line: `Measuring <model> thinking levels - 8 short requests, a
+moment...` becomes `Thinking levels for <provider>/<model>: off=none minimal/low=low
+medium=medium high/xhigh/max=xhigh (server rejects minimal/high/max); server thinks unless told not to.
+Choose one with /thinking.` Levels that share a server value are grouped so the line stays short. The
+working spinner is deliberately not used: Pi draws it only while a turn is streaming
+(`setWorkingVisible` checks `session.isStreaming`, `interactive-mode.js:1663-1673`), and a command
+handler is not a turn — it would have shown nothing.
 
 To re-measure after changing a server's flags (`--reasoning-parser`, a new checkpoint, an Ollama
 upgrade), run **`/measure-thinking-levels`** — it measures the current model and applies the result to

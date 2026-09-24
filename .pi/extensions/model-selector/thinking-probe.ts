@@ -37,6 +37,9 @@ export type ThinkingLevelMap = Partial<Record<ThinkingLevel, ThinkingLevelValue>
 /** Every vocabulary value probed: Pi's names plus the `none` most servers use for `off`. */
 export const PROBED_VALUES = ["none", ...ON_LEVELS];
 
+/** Requests a full probe sends: one baseline plus one per candidate value. */
+export const PROBE_REQUEST_COUNT = PROBED_VALUES.length + 1;
+
 /** What one probe request told us. */
 export type ProbeObservation = {
   /** `reasoning_effort` sent, or undefined for the baseline request. */

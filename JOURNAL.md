@@ -372,3 +372,26 @@ chose to keep the OpenAI-compatible surface only and continue with `/measure-thi
 | Keep probing as the single mechanism | One code path answers the same question on vLLM, Ollama, llama.cpp, LM Studio and anything else that speaks the API, instead of a table of server quirks. |
 | Recorded anyway | The measured capability lists are the clearest available statement of what those servers know about their own models, and they confirm the probe is right: the two Ollama models that declare `thinking` accept all seven `reasoning_effort` values. |
 | Audio needs no decision here | It is out of reach at the Pi layer, so no capability plumbing would help even if the model had an encoder. |
+
+### Follow-up — the measurement reported nothing on screen, and why
+The user ran `/measure-thinking-levels` and saw no log and no notification. Reading Pi's TUI showed two
+separate causes, both in how Pi renders extension output.
+
+| Pi behaviour | Code | Effect on this extension |
+| --- | --- | --- |
+| `ui.notify(msg, "info")` calls `showStatus`, which **replaces one dim status line in place** | `interactive-mode.js:2878-2886` | The two info notifications this extension emitted overwrote each other; only the last existed, in dim colour. The measured level map was therefore invisible. |
+| `ui.notify(msg, "warning" / "error")` **appends** a persistent line | `interactive-mode.js:3525-3528` | Warnings survive; successes do not. Explains why the fallback path was visible and the happy path was not. |
+| `setWorkingMessage` updates the text only if a working indicator is already active, and `setWorkingVisible(true)` shows it only when `session.isStreaming` | `interactive-mode.js:1663-1673`, `1905-1910` | A command handler is not a streaming turn, so the "Measuring..." working message was dead code that could never render. |
+
+| Decision | Reason |
+| --- | --- |
+| Say everything in **one** info line per command | Two info lines are one line in practice. The composed line carries the mapping, the values the server rejects, whether the server thinks by default, and the pointer to `/thinking`. |
+| Emit a status line **before** probing | Replaces the unrenderable spinner. It is then replaced by the result, which is the "Measuring... then result" sequence the user asked for. |
+| Group levels that share a server value (`minimal/low=low`, `high/xhigh/max=xhigh`) | Everything has to fit one wrapped dim line; grouping cut the mapping roughly in half without losing a level. |
+| Keep warnings appended, successes in the status line | Matches how Pi renders them rather than fighting it. |
+| Remove the `setWorkingMessage` calls rather than guard them | Proven unable to render outside a streaming turn; keeping a call that cannot draw anything is decoration. |
+
+Verified by extending the scripted harness: the pre-probe line appears first and names the request
+count, the final line contains the grouped mapping and the `/thinking` pointer, the grouped form matches
+`off=none minimal/low=low medium=medium high/xhigh/max=xhigh` exactly, and no working-indicator call is
+made at all. Type check still clean.
