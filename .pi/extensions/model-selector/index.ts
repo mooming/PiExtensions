@@ -1,6 +1,12 @@
 import { getAgentDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import * as fs from "fs";
 import * as path from "path";
+import {
+  buildThinkingLevelMap,
+  probeThinkingCapability,
+  type ProbeVerdict,
+  type ThinkingLevelMap,
+} from "./thinking-probe.ts";
 
 /** Fallback context window (tokens) used when neither the server nor config provides one. */
 const DEFAULT_CONTEXT_WINDOW = 262144;
@@ -98,10 +104,43 @@ export default async function (pi: ExtensionAPI)
   // Map to store loading status for models: { [providerId]: { [modelId]: isLoaded } }
   const providerModelsMap: Record<string, Record<string, boolean>> = {};
 
-  /** What a human has confirmed about one model. */
-  type StoredCapability = { vision?: boolean };
+  /**
+   * What has been established about one model -- by a human answer, or by probing the server.
+   *
+   * `thinkingLevelMap` is not optional decoration on `reasoning`. Pi sends its own level names as
+   * `reasoning_effort` unless a map overrides them, and servers reject spellings they do not know:
+   * the vLLM Qwen3.8 deployment answers HTTP 400 to `high`, which is Pi's configured default level
+   * here. `reasoning: true` without a map therefore fails every request instead of merely adding
+   * levels. The pair is stored together for that reason.
+   */
+  type StoredCapability = { vision?: boolean; reasoning?: boolean; thinkingLevelMap?: ThinkingLevelMap };
   /** providerId -> modelId -> confirmed capability. */
   type CapabilityStore = Record<string, Record<string, StoredCapability>>;
+
+  /** Fallback level vocabularies, offered only when a probe cannot read the server. */
+  const THINKING_PRESETS: { label: string; onLevels: string[] | null }[] = [
+    { label: "OpenAI style - off, low, medium, high", onLevels: ["low", "medium", "high"] },
+    { label: "vLLM/Qwen style - off, low, medium, xhigh", onLevels: ["low", "medium", "xhigh"] },
+    { label: "Every level accepted (Ollama style)", onLevels: ["minimal", "low", "medium", "high", "xhigh", "max"] },
+    { label: "No thinking - text only", onLevels: null },
+  ];
+
+  /** Compact human-readable summary of what is known about a model's thinking. */
+  function thinkingSummary(cap: StoredCapability): string
+  {
+    if (cap.reasoning === undefined) return "unknown: Pi will offer only 'off'";
+    if (!cap.reasoning) return "no";
+    const values = Array.from(
+      new Set(Object.values(cap.thinkingLevelMap ?? {}).filter((v) => typeof v === "string")),
+    );
+    return values.length > 0 ? `yes (${values.join("/")})` : "yes";
+  }
+
+  /** Pi level -> server value in Pi's level order, e.g. "off=none low=low high=xhigh". */
+  function describeThinkingLevelMap(map: ThinkingLevelMap): string
+  {
+    return Object.entries(map).map(([level, value]) => `${level}=${value}`).join(" ");
+  }
 
   /**
    * Where confirmed capabilities live: a file this extension owns, never models.json.
@@ -147,10 +186,20 @@ export default async function (pi: ExtensionAPI)
     try
     {
       const store = loadCapabilities();
-      store[providerId] = { ...store[providerId], [modelId]: cap };
+      // Merge, never replace: the vision answer and the thinking answer are written by different
+      // prompts, and overwriting the whole entry would silently lose whichever was saved first.
+      store[providerId] = {
+        ...store[providerId],
+        [modelId]: { ...store[providerId]?.[modelId], ...cap },
+      };
       fs.mkdirSync(path.dirname(storePath), { recursive: true });
       fs.writeFileSync(storePath, JSON.stringify(store, null, 2) + "\n", "utf-8");
-      return loadCapabilities()[providerId]?.[modelId]?.vision === cap.vision
+      // Confirm it landed, over exactly the keys this call owns. Comparing only one field would let a
+      // write that dropped the thinking map, or the vision answer, be reported as saved.
+      const stored = loadCapabilities()[providerId]?.[modelId] ?? {};
+      return (Object.keys(cap) as (keyof StoredCapability)[]).every(
+        (key) => JSON.stringify(stored[key]) === JSON.stringify(cap[key]),
+      )
         ? null
         : `${storePath} was not updated`;
     }
@@ -210,8 +259,11 @@ export default async function (pi: ExtensionAPI)
         id: m.id,
         name: m.id,
         status: m.status?.value || "unloaded", // Track if model is loaded
-        // No server reports reasoning flags on this API; left false until Pi's own layer covers it.
-        reasoning: false,
+        // `/v1/models` reports no reasoning flags on any server in practice, so what is known comes
+        // from probing that server once (see thinking-probe.ts) and is remembered here. Unknown stays
+        // false: an unregistered capability costs one extra question, a wrong one costs every request.
+        reasoning: declared[m.id]?.reasoning ?? false,
+        thinkingLevelMap: declared[m.id]?.thinkingLevelMap,
         vision: declared[m.id]?.vision ?? serverVision,
         // Resolve the effective context window. Precedence:
         //   server max_model_len  >  config override (maxContextLength)  >  DEFAULT_CONTEXT_WINDOW.
@@ -254,11 +306,14 @@ export default async function (pi: ExtensionAPI)
           baseUrl: finalBaseUrl,
           apiKey: provider.apiKey ?? "",
           api: "openai-completions",
-          models: modelsData.map(m => ({
+          models: modelsData.map((m: any) => ({
             id: m.id,
             name: m.name || m.id,
             isLoaded: isModelLoaded(m.status), // Track if model is loaded for sorting
             reasoning: m.reasoning || false,
+            // Passed through so Pi offers only the levels this server will accept; omitting it lets Pi
+            // send its own names and get HTTP 400 from servers with a different vocabulary.
+            thinkingLevelMap: m.thinkingLevelMap,
             input: m.vision ? ["text", "image"] : ["text"],
             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
             contextWindow: m.context_window,
@@ -275,7 +330,7 @@ export default async function (pi: ExtensionAPI)
         console.log(`Registered provider ${provider.id} with ${modelsData.length} models`);
       }
     } catch (err) {
-      console.warn(`Failed to register provider ${provider.id}: ${err.message}`);
+      console.warn(`Failed to register provider ${provider.id}: ${(err as Error).message}`);
     }
   }
 
@@ -390,7 +445,7 @@ export default async function (pi: ExtensionAPI)
         const modelLabelOf = (m: any) => {
           const isLoaded = providerModelsMap[providerChoice]?.[m.id] ?? false;
           const hasVision = Array.isArray(m.input) && m.input.includes("image");
-          return `${isLoaded ? "[loaded] " : ""}${hasVision ? "[vision] " : ""}${m.name} (${m.id})`;
+          return `${isLoaded ? "[loaded] " : ""}${hasVision ? "[vision] " : ""}${m.reasoning ? "[thinking] " : ""}${m.name} (${m.id})`;
         };
 
         const modelOptions = available.map(modelLabelOf);
@@ -405,27 +460,96 @@ export default async function (pi: ExtensionAPI)
 
         const selected = available.find(m => modelLabelOf(m) === modelLabel);
         if (selected) {
+          const providerDef = providerDefs.find(p => p.id === providerChoice);
+          const known = loadCapabilities()[providerChoice]?.[selected.id] ?? {};
+          // Answers are collected and written once, and the provider is re-registered once, because
+          // `reasoning` and `thinkingLevelMap` have to land in the same entry: the pair is the smallest
+          // unit that cannot break a request.
+          const pending: StoredCapability = {};
+
           // Most servers cannot report vision, so ask once and remember it (see loadCapabilities).
           // Pi silently drops image content for models registered text-only, which is exactly the
           // failure this prompt exists to prevent -- and it is answered here, not in models.json.
-          const knownVision = loadCapabilities()[providerChoice]?.[selected.id]?.vision;
           const visionAnswer = await ctx.ui.select(
             `Accepts image input? ${
-              knownVision === undefined ? "(unknown: Pi will omit images)"
-              : knownVision ? "(currently yes)" : "(currently no)"}`,
-            knownVision === true ? ["Yes", "No"] : ["No", "Yes"],
+              known.vision === undefined ? "(unknown: Pi will omit images)"
+              : known.vision ? "(currently yes)" : "(currently no)"}`,
+            known.vision === true ? ["Yes", "No"] : ["No", "Yes"],
           );
           if (!visionAnswer) {
             return;
           }
           const vision = visionAnswer === "Yes";
-          if (vision !== knownVision) {
-            const capError = saveCapability(providerChoice, selected.id, { vision });
+          if (vision !== known.vision) {
+            pending.vision = vision;
+          }
+
+          // Thinking is not in /v1/models either, but unlike vision it can be *measured*: an
+          // OpenAI-compatible endpoint answers 200 or 400 for each `reasoning_effort` value. Measuring
+          // is offered first because the answer is not a yes/no -- it is which levels this server accepts,
+          // and getting that wrong fails every request rather than merely offering fewer choices.
+          const thinkingAnswer = await ctx.ui.select(
+            `Supports thinking? (currently ${thinkingSummary(known)})`,
+            known.reasoning === undefined
+              ? ["Measure against the server", "No - text only"]
+              : ["Measure against the server", "Keep current answer", "No - text only"],
+          );
+          if (!thinkingAnswer) {
+            return;
+          }
+          if (thinkingAnswer === "Measure against the server") {
+            ctx.ui.setWorkingMessage?.("Measuring thinking levels: a few short requests to this server...");
+            let verdict: ProbeVerdict;
+            try {
+              verdict = await probeThinkingCapability({
+                baseUrl: providerDef?.baseUrl ?? "",
+                apiKey: providerDef?.apiKey,
+                modelId: selected.id,
+              });
+            } finally {
+              ctx.ui.setWorkingMessage?.(undefined);
+            }
+            if (verdict.status === "measured") {
+              pending.reasoning = verdict.reasoning;
+              pending.thinkingLevelMap = verdict.thinkingLevelMap;
+              ctx.ui.notify(
+                verdict.reasoning
+                  ? `Measured thinking levels: ${describeThinkingLevelMap(verdict.thinkingLevelMap!)}`
+                    + `${verdict.rejected.length ? `; server rejects ${verdict.rejected.join("/")}` : ""}`
+                    + `${verdict.thinkingByDefault ? "; server thinks unless told not to" : ""}`
+                  : "Measured: this server accepts no thinking level, so the model is registered without reasoning",
+                "info",
+              );
+            } else {
+              // Nothing is guessed in the server's place: a map full of values it rejects breaks every
+              // request, so an unreadable server means handing the choice to a person.
+              ctx.ui.notify(`Could not measure thinking levels: ${verdict.reason}`, "warning");
+              const presetLabel = await ctx.ui.select(
+                "Pick a thinking level vocabulary",
+                THINKING_PRESETS.map(p => p.label),
+              );
+              if (!presetLabel) {
+                return;
+              }
+              const preset = THINKING_PRESETS.find(p => p.label === presetLabel);
+              pending.reasoning = preset?.onLevels ? true : false;
+              pending.thinkingLevelMap = preset?.onLevels
+                ? buildThinkingLevelMap(preset.onLevels, "none") ?? undefined
+                : undefined;
+            }
+          } else if (thinkingAnswer === "No - text only") {
+            if (known.reasoning !== false) {
+              pending.reasoning = false;
+              pending.thinkingLevelMap = undefined;
+            }
+          }
+
+          if (Object.keys(pending).length > 0) {
+            const capError = saveCapability(providerChoice, selected.id, pending);
             if (capError) ctx.ui.notify(capError, "warning");
-            // Re-register so the flag is in Pi's registry before the model is activated.
+            // Re-register so the flags are in Pi's registry before the model is activated.
             pi.unregisterProvider(providerChoice);
-            const def = providerDefs.find(p => p.id === providerChoice);
-            if (def) await registerProvider(def);
+            if (providerDef) await registerProvider(providerDef);
           }
           // The registry entry may have been replaced by that re-registration; work from the live one.
           const active = (await ctx.modelRegistry.getAvailable())
@@ -436,13 +560,13 @@ export default async function (pi: ExtensionAPI)
           if (contextOption === "Custom") {
             let input: string | undefined;
             if (ctx.ui.input) {
-              input = await ctx.ui.input("Enter max context length (tokens)", { placeholder: "e.g. 200000" });
+              input = await ctx.ui.input("Enter max context length (tokens)", "e.g. 200000");
             } else {
               const common = ["65536", "131072", "262144", "524288", "Custom"]; // common sizes
               const choice = await ctx.ui.select("Pick a size (or Custom)", common);
               if (!choice) return;
               if (choice === "Custom") {
-                input = await ctx.ui.input("Enter max context length (tokens)", { placeholder: "e.g. 200000" });
+                input = await ctx.ui.input("Enter max context length (tokens)", "e.g. 200000");
               } else {
                 input = choice;
               }
@@ -489,14 +613,14 @@ export default async function (pi: ExtensionAPI)
       let input: string | undefined;
       if (ctx.ui.input) {
         // Newer API provides a free‑text input dialog
-        input = await ctx.ui.input("Enter max context length (tokens)", { placeholder: "e.g. 200000" });
+        input = await ctx.ui.input("Enter max context length (tokens)", "e.g. 200000");
       } else {
         // Fallback: present a list of common sizes
         const common = ["65536", "131072", "262144", "524288", "Custom"]; // 64k, 128k, 256k, 512k
         const choice = await ctx.ui.select("Pick a size (or Custom)", common);
         if (!choice) return;
         if (choice === "Custom") {
-          input = await ctx.ui.input("Enter max context length (tokens)", { placeholder: "e.g. 200000" });
+          input = await ctx.ui.input("Enter max context length (tokens)", "e.g. 200000");
         } else {
           input = choice;
         }

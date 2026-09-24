@@ -9,7 +9,7 @@ vLLM / llama.cpp / Ollama / LM Studio or any other OpenAI-compatible server.
 
 | Command | What it does |
 | --- | --- |
-| `/select-model` | Pick a provider, then a model, then answer "Accepts image input?" (the remembered answer is preselected). Loaded models sort first and are tagged `[loaded]`; models that accept images are tagged `[vision]`. The choice becomes Pi's **default model** and survives a restart. |
+| `/select-model` | Pick a provider, then a model, then answer "Accepts image input?" and "Supports thinking?" (remembered answers are preselected; thinking is measured against the server rather than guessed). Loaded models sort first and are tagged `[loaded]`; models that accept images are tagged `[vision]`; models with thinking levels are tagged `[thinking]`. The choice becomes Pi's **default model** and survives a restart. |
 | `/set-context-limit` | Set a max-context-length override for a provider, persisted back into `models.json` as `maxContextLength`. |
 
 ## Does the selection survive a restart?
@@ -92,6 +92,63 @@ To confirm a model really sees before answering, send one request with a `text` 
 To change an answer, run `/select-model` on the same model, pick it again, and answer the other way
 — the provider is re-registered immediately.
 
+### Thinking: measured against the server, not guessed
+
+Pi offers a thinking level only when the model is registered with `reasoning: true`, and it sends a
+thinking control field only then. `/v1/models` carries no reasoning information — vLLM reports
+`max_model_len` and nothing else, Ollama reports identifiers and nothing else — so vision and
+thinking look like the same problem. They are not: **vision has to be asked, thinking can be
+measured.** An OpenAI-compatible endpoint answers `200` or `400` to each `reasoning_effort` value.
+
+Choosing **Measure against the server** in `/select-model` sends eight requests with `max_tokens: 16`
+to `/v1/chat/completions` — one without `reasoning_effort`, then one per candidate value — records
+which were accepted, and stores the result:
+
+```jsonc
+// <agent dir>/model-capabilities.json — written by /select-model, owned by this extension
+{
+  "my-vllm": {
+    "Qwen/Qwen3.8-Flash-Next": {
+      "vision": true,
+      "reasoning": true,
+      "thinkingLevelMap": {
+        "off": "none", "minimal": "low", "low": "low", "medium": "medium",
+        "high": "xhigh", "xhigh": "xhigh", "max": "xhigh"
+      }
+    }
+  }
+}
+```
+
+That entry is what a vLLM Qwen3.8 deployment actually measured: it accepts `none`, `low`, `medium`,
+`xhigh` and answers **HTTP 400** — `Unexpected reasoning effort high. Supported types are xhigh
+(default), medium, and low.` — to `minimal`, `high` and `max`, which are three of Pi's own level
+names. Two consequences explain the design:
+
+* **`reasoning: true` without a map is broken, not merely coarse.** Pi sends its own level names, so
+  with `defaultThinkingLevel: high` *every request* would fail. The map and the flag are stored and
+  written as one unit for this reason.
+* **Registering `reasoning: false` does not switch thinking off either.** This server thinks unless
+  it is told not to: measured `144`–`3559` characters of reasoning with no control field sent, `0`
+  with `reasoning_effort: "none"`. A hardcoded `false` therefore hides an active, uncontrolled cost.
+
+Mapping rules (`thinking-probe.ts`): a level takes its own name when the server accepts that
+spelling; otherwise it rounds **up** to the nearest accepted value, matching the direction of Pi's
+own `clampThinkingLevel` and erring towards thinking more rather than silently doing less. `off` is
+claimed only when the server has a value that truly disables thinking — otherwise it is set to `null`
+and disappears from the level list, because a level that stops nothing is worse than no level.
+
+**If the probe cannot read the server** — no auth, offline, or a body the server rejects for
+unrelated reasons — the extension says why and asks you to pick a vocabulary (OpenAI style,
+Qwen/vLLM style, all-levels, or none). It never substitutes a guess, since a map of values that
+server rejects breaks every request.
+
+Cost: eight tiny requests, once per model id, then remembered. A cold local model made it take ~26 s
+on Ollama, ~5 s on a remote vLLM.
+
+To re-measure after changing a server's flags (`--reasoning-parser`, a new checkpoint, an Ollama
+upgrade), run `/select-model` on the same model and pick **Measure against the server** again.
+
 > **`models.json` stays Pi's.** This extension writes nothing into it, and you should not either for
 > this purpose. Pi validates that file against `ProviderConfigSchema` (`model-config.js`), where
 > `models` must be an **array** of model definitions: putting an object there does not get ignored,
@@ -120,4 +177,9 @@ To change an answer, run `/select-model` on the same model, pick it again, and a
 | `Failed to read models.json in …` | No config found. Create `models.json` in the agent directory or the project root. |
 | `(image omitted: model does not support images)` on a model that can see | The model's `input` lacks `"image"`. Answer **Yes** to "Accepts image input?" in `/select-model`, then reload — capability is resolved when the provider is registered, so `/reload` or a new session is required. |
 | `[vision]` missing in `/select-model` for a model you answered Yes for | The answer is keyed by the exact model id the server reports, so a renamed or re-deployed checkpoint looks like a brand new model. Answer again for that id. |
+| `/thinking` offers only `off` | The model is registered `reasoning: false`, which is the default for anything not yet measured. Run `/select-model`, pick the model, choose **Measure against the server**. |
+| Thinking happens although the level says `off` | The model was registered `reasoning: false`, so Pi sends no control field and the server applies its own default (vLLM Qwen thinks unless told otherwise). Measuring gives you an `off` that sends a real disable value. |
+| Every request fails: `Unexpected reasoning effort …` HTTP 400 | A stored `thinkingLevelMap` contains values this server rejects — it was picked from the fallback list, or the server changed. Re-measure with `/select-model`. |
+| `Could not measure thinking levels: …` | The probe could not read the server (auth, unreachable, or a request shape it rejects). Pick a vocabulary in the dialog that follows; nothing is guessed for you. |
+| `[thinking]` missing although the model thinks | Measured `reasoning: false` means the server accepted no thinking value. Check the server's reasoning flags (`--reasoning-parser`) and re-measure. |
 | `Invalid models.json schema: providers.<id>.models: must be array` | Something other than Pi's array of model definitions was written into `models` — a key this extension never writes. While the file is invalid Pi loads **no** providers from it, so every provider seems to vanish. |

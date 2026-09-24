@@ -9,7 +9,7 @@ A collection of useful extensions for **Pi Coding Agent** – small, friendly ad
   export default async function (pi: ExtensionAPI) { /* … */ }
   ```
 - **Available extensions**:
-  - `model-selector`: A gentle, generalized model selector. It reads a `models.json` file in `~/.pi/agent/`, discovers the providers you’ve listed, fetches their available models, and registers them with Pi. After that you can use the **/select‑model** command to pick a provider and a model from a friendly UI. Your choice is saved as Pi's default model, so it survives a restart (Pi ≥ 0.84.3 made `setModel()` session-scoped, which this extension works around).
+  - `model-selector`: A gentle, generalized model selector. It reads a `models.json` file in `~/.pi/agent/`, discovers the providers you’ve listed, fetches their available models, and registers them with Pi. After that you can use the **/select‑model** command to pick a provider and a model from a friendly UI. It also settles what `/v1/models` cannot report: vision is asked once, and thinking levels are **measured against the server** and remembered, so `/thinking` offers the levels your server actually accepts. Your choice is saved as Pi's default model, so it survives a restart (Pi ≥ 0.84.3 made `setModel()` session-scoped, which this extension works around). [Docs](.pi/extensions/model-selector/README.md).
   - `auto-continue`: Detects when the agent halts with **"Response was truncated before completion."** and automatically submits a continuation prompt on your behalf, so a cut‑off response resumes and finishes without you having to type “continue”. [Docs](.pi/extensions/auto-continue/README.md).
 
 ## How `model‑selector` works (in plain language)
@@ -17,6 +17,7 @@ A collection of useful extensions for **Pi Coding Agent** – small, friendly ad
 2. **Ask each provider** – for every provider defined, it calls the provider’s `/v1/models` endpoint to obtain a list of models.
 3. **Register with Pi** – the discovered providers and their models become first‑class citizens inside Pi, so the rest of Pi (commands, UI, etc.) can treat them like built‑in models.
 4. **Select a model** – when you run the `/select‑model` command, Pi shows a list of providers, then a list of models for the chosen provider. Picking one instantly switches the session to that model.
+5. **Settle what the server cannot report** – vision is asked once and remembered; thinking levels are probed against the server (eight tiny chat requests, once per model), because a level the server rejects fails the request outright. Both are kept in `model-capabilities.json` in the agent directory.
 
 ### Example `models.json`
 ```json

@@ -256,3 +256,76 @@ filled by the author — its findings carry less independence and are labelled a
   `JOURNAL.md` carries the decisions and reasons; the plan files were skipped.
 * Diagram layout is verified by measurement, not by a rendered screenshot: no browser is installed
   here. Font metrics vary by machine, so a label could sit tighter than measured.
+
+## 2026-09-24 — model-selector: thinking 능력 하드코딩 제거, 서버에서 실측
+
+### Goal
+The user asked whether the extension sets `thinking` appropriately per model. It did not:
+`fetchProviderModels` returned `reasoning: false` for every model, so Pi offered only `off`
+(`getSupportedThinkingLevels` short-circuits on `!model.reasoning`, `pi-ai/dist/models.js:551`) while
+the server was thinking anyway. The user then asked for the answer to be obtained through
+`/select-model`, and chose measurement-plus-fallback over presets or manual entry.
+
+### Measurements that decided the design
+All taken against the user's live servers during this session, not from documentation.
+
+| Measurement | Result | Consequence |
+| --- | --- | --- |
+| `GET /v1/models` field list — vLLM | `id, object, created, owned_by, root, parent, max_model_len, permission` | No reasoning information. Capability cannot be read. |
+| `GET /v1/models` field list — Ollama | `id, object, created, owned_by` | Same, and not even `max_model_len`. |
+| vLLM accepted `reasoning_effort` | `none`, `low`, `medium`, `xhigh`; **HTTP 400** for `minimal`, `high`, `max` — `Unexpected reasoning effort high. Supported types are xhigh (default), medium, and low.` | `reasoning: true` alone would fail *every* request: `settings.json` has `defaultThinkingLevel: high`, which is one of the rejected spellings. |
+| Ollama accepted `reasoning_effort` | all seven, no 400 | Vocabulary is per-server, so it cannot be a constant. |
+| No control field sent | 123–3559 characters of reasoning returned | `reasoning: false` does not switch thinking off; it just stops Pi from asking. |
+| `reasoning_effort: "none"` | 0 characters of reasoning | A real off exists on this server, so off is worth claiming. |
+| Top-level `enable_thinking: false` | ignored, thinking continued | Pi's `compat.thinkingFormat: "qwen"` would not work here — which is why the fix is the level map, not a compat setting. |
+| `chat_template_kwargs.enable_thinking: false` | honoured, thinking suppressed | Noted for completeness; Pi's `qwen-chat-template` format would also send `preserve_thinking: true`. |
+| `low` 2799 / `medium` 1682 / `xhigh` 3618 characters, identical prompt | levels do not order monotonically | Effort names are nominal on this server. No calibration applied — out of scope and unfixable from the client. |
+| Ollama `POST /api/show` | `capabilities: ["completion","vision","tools","thinking"]` | Thinking *and* vision are discoverable for Ollama. Deliberately out of scope; recorded as a proposal. |
+| `GET /server_info` on vLLM | 404 (`/version` answers) | No introspection endpoint to fall back on. |
+
+### Decision log
+| Decision | Reason |
+| --- | --- |
+| Measure by request, instead of inferring from the model id or keeping `false` | A name-based guess is unverifiable, and the hardcoded `false` was measured to be wrong in both directions. |
+| Ask inside `/select-model`, with **Measure against the server** as the first option | The user's explicit choice. Also keeps capability where the model is already being chosen. |
+| `thinkingLevelMap` is always stored and written together with `reasoning` | The 400 measurement: the flag without the map breaks every request, so the pair is the smallest unit that cannot fail. |
+| Unknown level rounds **up** to the nearest accepted value | Pi's own `clampThinkingLevel` searches upward first (`models.js:563-578`). Rounding down would also silently do less than the user selected. |
+| `off` set to `null` unless the server has a value that truly disables thinking | Registering an `off` that stops nothing is the exact defect this change replaces; Pi then drops the level from the list, which is the truth. |
+| An unreadable server yields a fallback question, never a guess | A coarse vocabulary harms nothing; a wrong one fails every request. Asymmetric cost. |
+| Stored in `model-capabilities.json`, beside `vision` | Consistent with the 2026-09-17 decision. `models.json` is Pi-validated, and one wrong key there costs every provider. |
+| `saveCapability` merges, and its read-back guard checks the keys actually written | Two prompts now write one entry. The old guard compared `vision` only, so a write that dropped the thinking map — or the vision answer — was reported as saved. |
+| Probe lives in `thinking-probe.ts`, importing nothing from Pi | So it can be run directly (`node --experimental-strip-types`) against live servers. Importing `index.ts` pulls the Pi package in, which is the thing the test should not need. |
+
+### Verification
+| Check | Method | Result |
+| --- | --- | --- |
+| V1 live probe, both servers | `node --experimental-strip-types` on the real probe module | vLLM produced `{off:none, minimal:low, low:low, medium:medium, high:xhigh, xhigh:xhigh, max:xhigh}` — identical to the map built by hand from raw measurements earlier in the session. Ollama produced the identity map. 4.8 s and 26.3 s. |
+| V2 classification rules | 13 cases on synthetic responses (partial vocabulary, missing off value, all rejected, dead baseline, transport throw, URL shapes) | All pass |
+| V3 loads the way Pi loads | `createJiti` with Pi's own alias set and `moduleCache: false` (`loader.js:416-427`) | `index.ts` and its `./thinking-probe.ts` import resolve; `/select-model` registers |
+| V4 whole command path | Scripted `ExtensionAPI` + a throwaway `PI_CODING_AGENT_DIR`, three runs: measure / keep / text-only | Capability file and Pi registration carry flag + map; `settings.json` gains only `defaultProvider`/`defaultModel`, other keys intact; `[thinking]` tag appears after measuring; "Keep current answer" re-probes nothing |
+| V5 no mapped value is rejected | The probe's own accepted list is the map's source | 400 appears only for values excluded from the map |
+| Type check | `tsc 5.9 --strict` against Pi's shipped `.d.ts` | 0 errors; `HEAD` had 6 (below) |
+
+### Defects found by the type check and fixed in passing
+| Defect at HEAD | Fix | Effect today |
+| --- | --- | --- |
+| `ctx.ui.input(title, { placeholder: "…" })` at four call sites — the second parameter is a string (`types.d.ts:74`) | Pass the string | None visible: Pi's `ExtensionInputComponent` names the parameter `_placeholder` and discards it. Latent, and it becomes real the moment Pi honours it. |
+| `err.message` in a `catch` under strict mode | `(err as Error).message` | Type-only |
+| `modelsData.map(m => …)` implicit any | `(m: any)` | Type-only |
+
+### Known limitations
+* Measurement reads **vocabulary**, not calibration. It cannot say whether this server's `medium`
+  thinks more than its `low`, and measured lengths do not order monotonically.
+* A server that thinks by default and exposes no disabling value measures `reasoning: false`, and
+  thinking there stays uncontrollable. The notification states it rather than hiding it.
+* First selection of a model costs eight short requests — about 26 s against a cold local model.
+* `[vision]` and `[thinking]` tags are read from Pi's registry, so a model whose capability changed
+  server-side shows the old tag until the provider is re-registered.
+* Two servers were tested: remote vLLM (Qwen3.8) and local Ollama. llama.cpp and LM Studio paths are
+  untested — they are the reason the fallback dialog exists rather than a silent default.
+* No real Pi session was launched: the command ran against a scripted `ExtensionAPI`. The TUI's
+  rendering of the new prompts, and Pi's persistence of a per-model thinking level, are unobserved.
+
+### Process note
+`.Plans/PLAN_model-selector-thinking.md` was written before implementation, unlike the two entries
+above that disclosed skipping it.
