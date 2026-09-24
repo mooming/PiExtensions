@@ -351,3 +351,24 @@ Both measurement paths now share `measureThinkingCapability`, so the probe and i
 cannot drift; verified by driving the new command in the scripted harness (measure → false → measure
 again), including that an unmanaged provider is refused rather than probed blind. Type check still
 clean.
+
+### Follow-up — OpenAI-compatible API only, by decision
+While answering whether audio input is possible, Ollama's native endpoints turned out to declare
+per-model capabilities, which is exactly the information this extension asks and probes for. The user
+chose to keep the OpenAI-compatible surface only and continue with `/measure-thinking-levels`.
+
+| Measured | Result |
+| --- | --- |
+| `GET /v1/models` — vLLM | `id, object, created, owned_by, root, parent, max_model_len, permission`. No capability field of any kind. |
+| `GET /v1/models/<id>` — vLLM | HTTP 404: the OpenAI retrieval endpoint is not implemented. |
+| `GET /v1/models`, `GET /v1/models/<id>` — Ollama | `id, object, created, owned_by`. Nothing about modality or reasoning. |
+| `GET /api/tags` — Ollama native | Per-model `capabilities`: `qwen3.8:27b-mlx` = completion/vision/tools/thinking, `gemma4:12b-mlx` = completion/vision/**audio**/tools/thinking, `ornith-1.5:9b` = tools/thinking/completion/vision. One request covers every model. |
+| Audio through the current model | `input_audio` content part -> HTTP 400 `At most 0 audio(s) may be provided in one prompt.` The deployment has no audio encoder. |
+| Audio through Pi | Input modalities are `text | image` only (`model-config.js:146` and `:158`); no audio content type exists in Pi's message types. Unreachable regardless of what a server declares. |
+
+| Decision | Reason |
+| --- | --- |
+| Do not read `/api/tags` or `/api/show` | Recognising Ollama means special-casing base URLs or adding a provider flag. That is where a generic OpenAI-compatible selector stops being generic, and the benefit -- skipping a one-time question and a one-time eight-request probe -- does not pay for it. |
+| Keep probing as the single mechanism | One code path answers the same question on vLLM, Ollama, llama.cpp, LM Studio and anything else that speaks the API, instead of a table of server quirks. |
+| Recorded anyway | The measured capability lists are the clearest available statement of what those servers know about their own models, and they confirm the probe is right: the two Ollama models that declare `thinking` accept all seven `reasoning_effort` values. |
+| Audio needs no decision here | It is out of reach at the Pi layer, so no capability plumbing would help even if the model had an encoder. |

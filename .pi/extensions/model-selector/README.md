@@ -157,6 +157,13 @@ are choosing a model.
 > rejected `reasoning_effort` surfaces as a failed request, not as an event Pi exposes. That is why
 > re-measuring is a command rather than an automatic prompt.
 
+> **Server-specific capability endpoints are deliberately not used.** Ollama's native `/api/tags` and
+> `/api/show` do declare per-model `capabilities` — `vision`, `thinking`, even `audio` — and reading
+> them would remove both the question and the measurement for Ollama models. Declined: this extension
+> speaks the OpenAI-compatible API only, and deciding "is this Ollama?" means special-casing base URLs,
+> which is the point where a generic selector stops being generic. Probing answers the same question on
+> every server, at eight short requests per model, once.
+
 > **`models.json` stays Pi's.** This extension writes nothing into it, and you should not either for
 > this purpose. Pi validates that file against `ProviderConfigSchema` (`model-config.js`), where
 > `models` must be an **array** of model definitions: putting an object there does not get ignored,
