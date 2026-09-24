@@ -1,4 +1,4 @@
-import { getAgentDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import * as fs from "fs";
 import * as path from "path";
 import {
@@ -140,6 +140,63 @@ export default async function (pi: ExtensionAPI)
   function describeThinkingLevelMap(map: ThinkingLevelMap): string
   {
     return Object.entries(map).map(([level, value]) => `${level}=${value}`).join(" ");
+  }
+
+  /**
+   * Measure one model against its own server and turn the answer into a capability declaration.
+   *
+   * Shared by `/select-model` and `/measure-thinking-levels` on purpose: a probe and its fallback
+   * dialog that exist twice drift apart, and the failure mode here (a value the server rejects)
+   * costs every later request.
+   *
+   * @returns the payload to store, or null when the person cancelled the fallback dialog.
+   */
+  async function measureThinkingCapability(input: {
+    baseUrl: string;
+    apiKey?: string;
+    modelId: string;
+  }, ctx: ExtensionCommandContext): Promise<StoredCapability | null>
+  {
+    ctx.ui.setWorkingMessage?.("Measuring thinking levels: a few short requests to this server...");
+    let verdict: ProbeVerdict;
+    try
+    {
+      verdict = await probeThinkingCapability({
+        baseUrl: input.baseUrl,
+        apiKey: input.apiKey,
+        modelId: input.modelId,
+      });
+    }
+    finally
+    {
+      ctx.ui.setWorkingMessage?.(undefined);
+    }
+
+    if (verdict.status === "measured")
+    {
+      ctx.ui.notify(
+        verdict.reasoning
+          ? `Measured thinking levels: ${describeThinkingLevelMap(verdict.thinkingLevelMap!)}`
+            + `${verdict.rejected.length ? `; server rejects ${verdict.rejected.join("/")}` : ""}`
+            + `${verdict.thinkingByDefault ? "; server thinks unless told not to" : ""}`
+          : "Measured: this server accepts no thinking level, so the model is registered without reasoning",
+        "info",
+      );
+      return { reasoning: verdict.reasoning, thinkingLevelMap: verdict.thinkingLevelMap };
+    }
+
+    // Nothing is guessed in the server's place: a map full of values it rejects breaks every request,
+    // so an unreadable server means handing the choice to a person.
+    ctx.ui.notify(`Could not measure thinking levels: ${verdict.reason}`, "warning");
+    const presetLabel = await ctx.ui.select(
+      "Pick a thinking level vocabulary",
+      THINKING_PRESETS.map(p => p.label),
+    );
+    if (!presetLabel) return null;
+    const preset = THINKING_PRESETS.find(p => p.label === presetLabel);
+    return preset?.onLevels
+      ? { reasoning: true, thinkingLevelMap: buildThinkingLevelMap(preset.onLevels, "none") ?? undefined }
+      : { reasoning: false, thinkingLevelMap: undefined };
   }
 
   /**
@@ -498,45 +555,20 @@ export default async function (pi: ExtensionAPI)
             return;
           }
           if (thinkingAnswer === "Measure against the server") {
-            ctx.ui.setWorkingMessage?.("Measuring thinking levels: a few short requests to this server...");
-            let verdict: ProbeVerdict;
-            try {
-              verdict = await probeThinkingCapability({
-                baseUrl: providerDef?.baseUrl ?? "",
-                apiKey: providerDef?.apiKey,
-                modelId: selected.id,
-              });
-            } finally {
-              ctx.ui.setWorkingMessage?.(undefined);
+            if (!providerDef)
+            {
+              ctx.ui.notify(`${providerChoice} is no longer configured - cannot measure.`, "error");
+              return;
             }
-            if (verdict.status === "measured") {
-              pending.reasoning = verdict.reasoning;
-              pending.thinkingLevelMap = verdict.thinkingLevelMap;
-              ctx.ui.notify(
-                verdict.reasoning
-                  ? `Measured thinking levels: ${describeThinkingLevelMap(verdict.thinkingLevelMap!)}`
-                    + `${verdict.rejected.length ? `; server rejects ${verdict.rejected.join("/")}` : ""}`
-                    + `${verdict.thinkingByDefault ? "; server thinks unless told not to" : ""}`
-                  : "Measured: this server accepts no thinking level, so the model is registered without reasoning",
-                "info",
-              );
-            } else {
-              // Nothing is guessed in the server's place: a map full of values it rejects breaks every
-              // request, so an unreadable server means handing the choice to a person.
-              ctx.ui.notify(`Could not measure thinking levels: ${verdict.reason}`, "warning");
-              const presetLabel = await ctx.ui.select(
-                "Pick a thinking level vocabulary",
-                THINKING_PRESETS.map(p => p.label),
-              );
-              if (!presetLabel) {
-                return;
-              }
-              const preset = THINKING_PRESETS.find(p => p.label === presetLabel);
-              pending.reasoning = preset?.onLevels ? true : false;
-              pending.thinkingLevelMap = preset?.onLevels
-                ? buildThinkingLevelMap(preset.onLevels, "none") ?? undefined
-                : undefined;
+            const measured = await measureThinkingCapability(
+              { baseUrl: providerDef.baseUrl, apiKey: providerDef.apiKey, modelId: selected.id },
+              ctx,
+            );
+            if (!measured) {
+              return;
             }
+            pending.reasoning = measured.reasoning;
+            pending.thinkingLevelMap = measured.thinkingLevelMap;
           } else if (thinkingAnswer === "No - text only") {
             if (known.reasoning !== false) {
               pending.reasoning = false;
@@ -599,6 +631,62 @@ export default async function (pi: ExtensionAPI)
       }
     }
   );
+
+  /**
+   * Re-measure the *current* model, without walking the model-selection prompts again.
+   *
+   * Needed because a stored map is a cache of one server deployment's behaviour, and that deployment
+   * changes underneath it: a `--reasoning-parser` flag added, a checkpoint swapped, an Ollama upgrade.
+   * `/select-model` can do this too, but it also re-asks about images and context length, which makes
+   * the common case -- "the server changed" -- feel like re-selecting the model.
+   */
+  pi.registerCommand("measure-thinking-levels", {
+    description: "Re-measure the current model's thinking levels against its server",
+    handler: async (args, ctx) => {
+      const model = ctx.model;
+      if (!model)
+      {
+        ctx.ui.notify("No model is active, so there is nothing to measure.", "error");
+        return;
+      }
+      const provider = providerDefs.find(p => p.id === model.provider);
+      if (!provider)
+      {
+        ctx.ui.notify(`${model.provider} is not configured in models.json, so this extension cannot measure it.`, "error");
+        return;
+      }
+
+      const measured = await measureThinkingCapability(
+        { baseUrl: model.baseUrl ?? provider.baseUrl, apiKey: provider.apiKey, modelId: model.id },
+        ctx,
+      );
+      if (!measured) {
+        return;
+      }
+      const capError = saveCapability(provider.id, model.id, measured);
+      if (capError) ctx.ui.notify(capError, "warning");
+
+      // Re-register, then re-bind the session to the live registry entry. The session keeps the Model
+      // object it was handed, so updating the registry alone does not change what the next request
+      // sends -- this is the same reason /select-model re-reads the entry before activating it.
+      pi.unregisterProvider(provider.id);
+      await registerProvider(provider);
+      const live = (await ctx.modelRegistry.getAvailable())
+        .find(m => m.provider === provider.id && m.id === model.id);
+      if (!live)
+      {
+        ctx.ui.notify(`${model.id} is no longer served by ${provider.id}; the measurement is saved but cannot be applied.`, "warning");
+        return;
+      }
+      const applied = await pi.setModel(live);
+      ctx.ui.notify(
+        applied
+          ? `Applied to ${provider.id}/${model.id} for this session.`
+          : `Saved, but ${model.id} could not be re-activated (no auth configured).`,
+        applied ? "info" : "warning",
+      );
+    },
+  });
 
   // Register a command to customize the max context length for a provider via the TUI
   pi.registerCommand("set-context-limit", {

@@ -329,3 +329,25 @@ All taken against the user's live servers during this session, not from document
 ### Process note
 `.Plans/PLAN_model-selector-thinking.md` was written before implementation, unlike the two entries
 above that disclosed skipping it.
+
+### Follow-up — `/measure-thinking-levels`, and why re-measuring is a command
+The user asked whether a stored measurement is needed at all, then proposed asking to re-measure when
+the model or effort setting changes, and finally settled on a dedicated command. Naming was theirs:
+`/measure-thinking-levels` over the earlier `/measure_reasoning_effort` suggestion.
+
+| Question examined | Finding |
+| --- | --- |
+| Does Pi report the thinking level being *changed*? | `pi.on("thinking_level_select")` exists, but `AgentSession.setThinkingLevel` emits only when `effectiveLevel !== previousLevel` (`agent-session.js:1364-1378`). On a model registered without reasoning the only available level is `off`, so the level never changes and **the event never fires** — the exact situation a re-measure prompt would be needed for is the one it cannot observe. |
+| Does Pi report the model being changed? | Yes: `model_select` with `source: "set" | "cycle" | "restore"` (`agent-session.js:1238-1244`), and dialogs are available where `ctx.hasUI`. So a prompt on model switch is *possible* — declined in favour of the command, and available later if wanted. |
+| Can a stale map be detected from the response? | Partially. `after_provider_response` carries `status` and `headers` only (`types.d.ts:533-537`) — no body, so a 400 cannot be confirmed as "Unexpected reasoning effort" without guessing among unrelated 400 causes. Not used. |
+| Decision | `/measure-thinking-levels`: measures the current model, saves, re-registers, and re-binds the session. Explicit, zero extra requests when nothing is wrong, no dialog that can misfire at startup or during a session restore. |
+
+Why re-binding the session matters: the session holds the `Model` object it was handed, so updating
+Pi's registry alone does not change what the next request sends. The command therefore re-reads the
+live registry entry and calls `setModel` on it — the same reason `/select-model` does. It deliberately
+does **not** write `defaultProvider`/`defaultModel`, because re-measuring is not choosing a model.
+
+Both measurement paths now share `measureThinkingCapability`, so the probe and its fallback dialog
+cannot drift; verified by driving the new command in the scripted harness (measure → false → measure
+again), including that an unmanaged provider is refused rather than probed blind. Type check still
+clean.

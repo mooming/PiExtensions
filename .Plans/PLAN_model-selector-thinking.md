@@ -81,3 +81,13 @@
 
 수정된 기존 결함 3건(`ui.input`의 placeholder 인자 타입 4곳, `err.message`, `m` 암시 any)과 한계는
 `JOURNAL.md`의 같은 날짜 항목에 기록.
+
+## 후속 변경 — `/measure-thinking-levels` 추가
+
+- 재측정을 "변경 시 질문"이 아닌 명시적 명령으로 제공한 근거: `thinking_level_select`는 수준이 **실제로
+  바뀔 때만** 발화하므로(`agent-session.js:1364-1378`의 `isChanging` 게이트), `off`만 가능한 모델에서는
+  사용자가 아무리 시도해도 이벤트가 뜨지 않는다 → 질문 트리거로 쓸 수 없음. `model_select`는 발화하므로
+  기술적으로 가능하나 채택 보류(나중에 추가 가능).
+- 측정 로직은 `/select-model`과 새 명령이 `measureThinkingCapability`를 공유(중복 제거).
+- 새 명령은 활성 모델만 측정하고 세션에 재바인딩하며, `defaultProvider`/`defaultModel`은 건드리지 않는다.
+- 검증: 타입 체크 0건, 스크립트 하네스 4회차(측정→끄기→재측정)·미관리 제공자 거부까지 통과.

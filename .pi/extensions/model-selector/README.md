@@ -10,6 +10,7 @@ vLLM / llama.cpp / Ollama / LM Studio or any other OpenAI-compatible server.
 | Command | What it does |
 | --- | --- |
 | `/select-model` | Pick a provider, then a model, then answer "Accepts image input?" and "Supports thinking?" (remembered answers are preselected; thinking is measured against the server rather than guessed). Loaded models sort first and are tagged `[loaded]`; models that accept images are tagged `[vision]`; models with thinking levels are tagged `[thinking]`. The choice becomes Pi's **default model** and survives a restart. |
+| `/measure-thinking-levels` | Re-measure the **current** model's thinking levels against its server and apply the result to this session — no re-selection, no re-asking about images or context length. Use it after changing the server's reasoning flags, swapping a checkpoint, or upgrading Ollama. |
 | `/set-context-limit` | Set a max-context-length override for a provider, persisted back into `models.json` as `maxContextLength`. |
 
 ## Does the selection survive a restart?
@@ -147,7 +148,14 @@ Cost: eight tiny requests, once per model id, then remembered. A cold local mode
 on Ollama, ~5 s on a remote vLLM.
 
 To re-measure after changing a server's flags (`--reasoning-parser`, a new checkpoint, an Ollama
-upgrade), run `/select-model` on the same model and pick **Measure against the server** again.
+upgrade), run **`/measure-thinking-levels`** — it measures the current model and applies the result to
+the session immediately. `/select-model` → **Measure against the server** does the same thing while you
+are choosing a model.
+
+> The stored measurement is a cache of one deployment's behaviour, and nothing can detect that
+> deployment changing from the client side: the model id stays the same when a flag changes, and a
+> rejected `reasoning_effort` surfaces as a failed request, not as an event Pi exposes. That is why
+> re-measuring is a command rather than an automatic prompt.
 
 > **`models.json` stays Pi's.** This extension writes nothing into it, and you should not either for
 > this purpose. Pi validates that file against `ProviderConfigSchema` (`model-config.js`), where
@@ -181,5 +189,6 @@ upgrade), run `/select-model` on the same model and pick **Measure against the s
 | Thinking happens although the level says `off` | The model was registered `reasoning: false`, so Pi sends no control field and the server applies its own default (vLLM Qwen thinks unless told otherwise). Measuring gives you an `off` that sends a real disable value. |
 | Every request fails: `Unexpected reasoning effort …` HTTP 400 | A stored `thinkingLevelMap` contains values this server rejects — it was picked from the fallback list, or the server changed. Re-measure with `/select-model`. |
 | `Could not measure thinking levels: …` | The probe could not read the server (auth, unreachable, or a request shape it rejects). Pick a vocabulary in the dialog that follows; nothing is guessed for you. |
+| `<provider> is not configured in models.json` from `/measure-thinking-levels` | The active model is not one this extension discovered (a built-in provider, or a provider removed from `models.json`). Nothing is measured. |
 | `[thinking]` missing although the model thinks | Measured `reasoning: false` means the server accepted no thinking value. Check the server's reasoning flags (`--reasoning-parser`) and re-measure. |
 | `Invalid models.json schema: providers.<id>.models: must be array` | Something other than Pi's array of model definitions was written into `models` — a key this extension never writes. While the file is invalid Pi loads **no** providers from it, so every provider seems to vanish. |
