@@ -161,6 +161,8 @@ footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color:
         <td><span class="i18n en">Apply hierarchy and logic to all artifacts.</span><span class="i18n ko">모든 산출물에 계층과 논리를 적용한다.</span></td></tr>
     <tr><th><span class="i18n en">Visual communication</span><span class="i18n ko">시각적 소통</span></th>
         <td><span class="i18n en">Use tables, diagrams, flowcharts, and graphs for reporting.</span><span class="i18n ko">보고에는 표, 도해, 흐름도, 그래프를 사용한다.</span></td></tr>
+    <tr><th><span class="i18n en">Compact reporting</span><span class="i18n ko">담백한 보고</span></th>
+        <td><span class="i18n en">Report prose ≤ 3 sentences: cause, progress, conclusion.</span><span class="i18n ko">보고 본문은 최대 세 문장: 원인, 진행, 결론.</span></td></tr>
     <tr><th><span class="i18n en">Plain naming</span><span class="i18n ko">담백한 이름</span></th>
         <td><span class="i18n en">No invented acronyms or code names — write terms in full.</span><span class="i18n ko">스스로 만든 약어나 암호식 이름은 쓰지 않고, 이름을 전부 풀어 쓴다.</span></td></tr>
   </tbody>
@@ -320,7 +322,7 @@ footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color:
 <table>
   <thead><tr><th><span class="i18n en">Step</span><span class="i18n ko">걸음</span></th><th><span class="i18n en">Action</span><span class="i18n ko">행동</span></th></tr></thead>
   <tbody>
-    <tr><td class="num">10</td><td><span class="i18n en"><b>Report:</b> use structured format with tables and diagrams, update journal.</span><span class="i18n ko"><b>보고:</b> 표와 도해를 갖춘 구조화된 형식을 쓰고, 일지를 갱신한다.</span></td></tr>
+    <tr><td class="num">10</td><td><span class="i18n en"><b>Report:</b> prose ≤ 3 sentences (cause, progress, conclusion), update journal.</span><span class="i18n ko"><b>보고:</b> 본문은 세 문장 이내(원인, 진행, 결론), 일지를 갱신한다.</span></td></tr>
     <tr><td class="num">11</td><td><span class="i18n en"><b>Next step:</b> handle additional requests or close task.</span><span class="i18n ko"><b>다음 단계:</b> 추가 요청을 처리하거나 작업을 마친다.</span></td></tr>
   </tbody>
 </table>
@@ -500,17 +502,22 @@ LOG_INFO("[Render] Drawing frame %d at (%d, %d)", frame, x, y);
 <section id="report-format">
 <h2><span class="tag">07</span> <span class="i18n en">Report format template</span><span class="i18n ko">보고 형식 틀</span></h2>
 <p>
-  <span class="i18n en">Every report follows this structure, in this order.</span>
-  <span class="i18n ko">모든 보고는 이 순서와 구조를 따른다.</span>
+  <span class="i18n en"><b>Three-sentence rule:</b> report prose stays within 3 sentences in total — cause, progress, conclusion, one sentence each. Long reports are not human-readable: never make the reader wade through paragraphs of prose. Tables, diagrams, and code are exempt from the limit, because they are data displays, not prose. Every report follows this structure, in this order; omit a section that has nothing to show.</span>
+  <span class="i18n ko"><b>세 문장 규칙:</b> 보고 본문은 모두 합쳐 세 문장 이내로 유지한다 — 원인, 진행, 결론, 각각 한 문장씩. 긴 보고는 사람이 읽지 않는다: 읽는 사람을 글더미에 빠뜨리지 마라. 표, 도해, 코드는 글이 아니라 데이터를 보여주는 것이므로 이 제한에서 제외한다. 모든 보고는 이 순서와 구조를 따르고, 보여줄 것이 없는 절은 생략한다.</span>
 </p>
 
 <div class="cards">
   <div class="card"><h4><i>1</i><span class="i18n en">Executive summary</span><span class="i18n ko">핵심 요약</span></h4>
-    <p><span class="i18n en">A one or two sentence headline summarizing the outcome.</span><span class="i18n ko">결과를 한두 문장의 제목으로 요약한다.</span></p></div>
+    <p><span class="i18n en">The only place report prose appears — three sentences:</span><span class="i18n ko">보고 본문이 나오는 유일한 자리 — 세 문장:</span></p>
+    <ul class="plain">
+      <li><span class="i18n en"><b>Cause:</b> why the work was done — trigger and goal, in one sentence.</span><span class="i18n ko"><b>원인:</b> 이 작업을 한 이유 — 계기와 목표를 한 문장으로.</span></li>
+      <li><span class="i18n en"><b>Progress:</b> what was actually done and verified, in one sentence.</span><span class="i18n ko"><b>진행:</b> 실제로 하고 검증한 것을 한 문장으로.</span></li>
+      <li><span class="i18n en"><b>Conclusion:</b> the result, current state, and next step, in one sentence.</span><span class="i18n ko"><b>결론:</b> 결과와 현재 상태와 다음 단계를 한 문장으로.</span></li>
+    </ul></div>
   <div class="card"><h4><i>2</i><span class="i18n en">Problem context</span><span class="i18n ko">문제 배경</span></h4>
-    <p><span class="i18n en">A brief restatement of the original problem and goal.</span><span class="i18n ko">원래의 문제와 목표를 간결하게 다시 서술한다.</span></p></div>
+    <p><span class="i18n en">No prose here — the Cause sentence carries it. Include a table or diagram only if it clarifies the cause.</span><span class="i18n ko">여기에는 본문을 쓰지 않는다 — 원인 문장이 대신한다. 원인을 밝히는 데 도움이 될 때만 표나 도해를 넣는다.</span></p></div>
   <div class="card"><h4><i>3</i><span class="i18n en">Approach and solution</span><span class="i18n ko">접근과 해결</span></h4>
-    <p><span class="i18n en">Up to ten sentences describing the methodology and the resolution.</span><span class="i18n ko">방법론과 해결 과정을 최대 열 문장으로 서술한다.</span></p></div>
+    <p><span class="i18n en">No prose here — the Progress sentence carries it. Method and steps go in a table or diagram, only if they clarify progress.</span><span class="i18n ko">여기에는 본문을 쓰지 않는다 — 진행 문장이 대신한다. 방법과 단계는 진행을 밝히는 데 도움이 될 때만 표나 도해로 담는다.</span></p></div>
   <div class="card"><h4><i>4</i><span class="i18n en">Key results</span><span class="i18n ko">주요 결과</span></h4>
     <p><span class="i18n en">A table of metric, target, actual, status, notes.</span><span class="i18n ko">지표, 목표, 실제, 상태, 비고를 표로 낸다.</span></p>
     <table style="margin-top:10px">
@@ -529,7 +536,7 @@ LOG_INFO("[Render] Drawing frame %d at (%d, %d)", frame, x, y);
       </tbody>
     </table></div>
   <div class="card"><h4><i>5</i><span class="i18n en">Conclusion and recommendations</span><span class="i18n ko">결론과 권고</span></h4>
-    <p><span class="i18n en">Verified results, limitations, next steps.</span><span class="i18n ko">검증된 결과, 한계, 다음 단계.</span></p></div>
+    <p><span class="i18n en">No prose here — the Conclusion sentence carries it. Next steps go in table rows or pointers to commands and files.</span><span class="i18n ko">여기에는 본문을 쓰지 않는다 — 결론 문장이 대신한다. 다음 단계는 표의 행이나, 명령과 파일을 가리키는 말로 남긴다.</span></p></div>
 </div>
 </section>
 

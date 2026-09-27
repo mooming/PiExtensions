@@ -395,3 +395,22 @@ Verified by extending the scripted harness: the pre-probe line appears first and
 count, the final line contains the grouped mapping and the `/thinking` pointer, the grouped form matches
 `off=none minimal/low=low medium=medium high/xhigh/max=xhigh` exactly, and no working-indicator call is
 made at all. Type check still clean.
+
+## 2026-09-27 — SYSTEM.md: three-sentence reporting rule, prose boxes removed
+The user supplied a reporting guide — reports must stay compact, ideally three sentences,
+structured Cause / Progress / Conclusion, because long prose is not human-readable — and
+asked for it in an appropriate place, in corrected English. The draft conflicted with the
+existing Report Format Template (five sections, "up to 10 sentences" of prose), so the
+conflict had to be resolved first.
+
+| Decision | Reason |
+| --- | --- |
+| Three sentences govern prose; the five-section template stays | User's chosen option. Section 1 Executive Summary carries the whole prose: one Cause, one Progress, one Conclusion sentence. Sections 2, 3, 5 keep their slots but carry no prose — the three sentences already say them. |
+| Tables, diagrams, code stay exempt from the limit | They are data displays, not prose; the Visual Communication principle and the Key Results metrics table remain fully usable. |
+| Rule recorded in three places: Core Principles row, step 10, Report Format Template | It constrains the report at every point a report is specified; one isolated mention would be easy to miss while filling the template. |
+| Box-drawing borders removed from non-table content | User: border lines on prose are noise. Report Format Template sections now use headings and bullet points; Key Results became a real Markdown table. Box-drawn genuine tables elsewhere in the file are kept, with widths script-verified. |
+| English of the draft corrected | "Cause, Progress, Concolusion will be ideal structure" → Cause / Progress / Conclusion, one sentence each; the reason (long prose is unreadable) kept as the rule's justification. |
+| SYSTEM.html updated in the same commit | AGENTS.md synchronization rule: same content, English and Korean — core-principles row, step 10 row, report-format intro and cards. |
+
+Verified by script: every box block uniform width, zero borders left inside the report
+template, HTML tag balance clean, rule text present in both files.
