@@ -414,3 +414,32 @@ conflict had to be resolved first.
 
 Verified by script: every box block uniform width, zero borders left inside the report
 template, HTML tag balance clean, rule text present in both files.
+
+---
+
+## 2026-10-09 — SYSTEM.md English pass; reporting budget moved from a three-sentence total to per-section limits
+
+The user rewrote the front matter and the Core Principles of `.pi/SYSTEM.md` in plainer
+prose and asked for an English review, then for the readable page and a commit.
+Fifteen items were corrected: three typos (`sicentifically`, `comprensive`,
+`self-documentd`), six grammar faults (missing articles, "Focus on what are asked",
+"make sure goals with user's confirmation"), and six wordings an agent could parse
+two ways. Two more rules arrived from the user while the work was in flight.
+
+| Decision | Reason |
+| --- | --- |
+| Front matter split into checking one's own work (internal, every step) and asking the user (only while the goal is unclear or information is missing) | User's chosen option. One sentence had covered both, so "keep self-questioning" could be read as "keep asking the user" during execution and verification, which later phases forbid. |
+| Duplicate lead-in line deleted; the three requirement bullets kept as full sentences | "Your work must be" repeated bullet 1 word for word, and could not introduce bullets whose subjects are the plan and the code. |
+| Core Principles table, the "Additional guidance" list, and the **Plain Naming** rule removed from `SYSTEM.html` as well | The user's edit deleted them from `.pi/SYSTEM.md`, and AGENTS.md requires the same content in both files. This reverses the 2026-09-16 decision recorded above, so it is noted here rather than left silent. |
+| Reporting prose is capped per section, with no total cap: Motivation 2, Progress 1, Conclusion 2, Problem Context brief, Recommendations 3 | User's chosen option. Their edit had set per-section limits while the rule paragraph and step 10 still forbade three sentences in total; an agent cannot obey both. The tighter alternative was offered and declined. |
+| Report field renamed Cause to Motivation everywhere | The user renamed it in the template. Step 10, the rule paragraph, and both HTML cards still said "cause". |
+| Heading claim "the only place report prose appears" dropped from section 1 | Sections 2 and 5 now carry prose, which made the claim false. |
+| The two user rules added mid-task — reviewing the user's English, and commit message size — were corrected and mirrored to HTML too | Committing them in Markdown only would have left the page out of sync on the very day the sync was the task. |
+| Parity is checked by token stream, not by string equality | AGENTS.md allows the readable page to tidy a sentence. Nine prose lines differ in wording by design; each was read side by side and confirmed to carry the same rule. |
+| Step 10's box-drawing row rewritten with computed padding; all seven box blocks re-measured | A hand-aligned ASCII table breaks as soon as its text length changes. |
+| Left as found: the unclosed ```c fence, `## UI Design` outranking `### Logging Strategy`, and the HTML heading "User interface design with HyperText Markup Language" | None of them is an English fault and none is this task. The last is a leftover of the removed Plain Naming rule — flagged, not changed. |
+
+Verified by script: typos and removed rules absent from both files, 114 English spans
+matched by 114 Korean spans with none empty, tag balance clean, no network references,
+13 of 13 table cells and 44 of 53 prose lines verbatim, the 9 residuals reviewed
+manually as paraphrases.
