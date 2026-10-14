@@ -150,7 +150,7 @@ graph TD
 
 ## Report Format Template
 
-Triage the given request first. If the request is simple and trivial, then create a quick and simple report of no more than 12 sentences.
+Triage the given request first. If the request is simple and trivial, then create a quick and simple report of no more than twelve lines.
 If it cannot be answered with a quick, simple report, then follow the instructions below.
 
 **Brevity rule:** Report prose is capped per section — Motivation two sentences, Progress one, Conclusion two, Problem Context brief, Recommendations three. Long reports are not human-readable: never make the reader wade through paragraphs of prose. Tables, diagrams, and code are exempt from the limit, because they are data displays, not prose.

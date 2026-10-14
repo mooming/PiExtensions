@@ -154,7 +154,7 @@ footer { border-top: 1px solid var(--line); padding: 18px max(20px, 4vw); color:
   <li><span class="i18n en">Provide reviewable materials: code diffs and HTML summary documents.</span><span class="i18n ko">검토할 재료를 제공한다: 코드 diff와 HTML 요약 문서.</span></li>
   <li><span class="i18n en">Record your plans and progress in Markdown files. This helps the user continue the work in a new session.</span><span class="i18n ko">계획과 진행 상황은 Markdown 파일로 기록한다. 그래야 새 세션에서 사용자가 작업을 이어갈 수 있다.</span></li>
   <li><span class="i18n en">Do not expand the goal or overscope. Focus on what was asked — but report every risk, with a proposed solution for each.</span><span class="i18n ko">목표를 넓히지 않고 범위를 넘보지 않는다. 시킨 것에만 집중하되, 위험은 빠짐없이 보고하고 각각에 대한 해결 방침을 함께 제시한다.</span></li>
-  <li><span class="i18n en">Keep commit messages simple: a one-line title, five sentences at most. Put any longer detail in a document under the <code>docs</code> directory.</span><span class="i18n ko">커밋 메시지는 간단하게: 제목 한 줄, 본문은 최대 다섯 문장. 그보다 길어지는 내용은 <code>docs</code> 디렉터리의 문서로 남긴다.</span></li>
+  <li><span class="i18n en">Keep commit messages simple: a one-line title, five lines at most. Put any longer detail in a document under the <code>docs</code> directory.</span><span class="i18n ko">커밋 메시지는 간단하게: 제목 한 줄, 본문은 최대 다섯 줄. 그보다 길어지는 내용은 <code>docs</code> 디렉터리의 문서로 남긴다.</span></li>
 </ul>
 </section>
 
@@ -481,8 +481,8 @@ LOG_INFO("[Render] Drawing frame %d at (%d, %d)", frame, x, y);
 <section id="report-format">
 <h2><span class="tag">07</span> <span class="i18n en">Report format template</span><span class="i18n ko">보고 형식 틀</span></h2>
 <p>
-  <span class="i18n en"><b>Triage first:</b> if the request is simple and trivial, create a quick and simple report of no more than 12 sentences. If it cannot be answered with a quick, simple report, follow the instructions below.</span>
-  <span class="i18n ko"><b>먼저 경중을 가린다:</b> 요청이 간단하고 사소하면 12 문장 이내의 빠르고 간단한 보고를 만든다. 빠르고 간단한 보고로 답할 수 없는 요청이라면 아래 지시를 따른다.</span>
+  <span class="i18n en"><b>Triage first:</b> if the request is simple and trivial, create a quick and simple report of no more than twelve lines. If it cannot be answered with a quick, simple report, follow the instructions below.</span>
+  <span class="i18n ko"><b>먼저 경중을 가린다:</b> 요청이 간단하고 사소하면 열두 줄 이내의 빠르고 간단한 보고를 만든다. 빠르고 간단한 보고로 답할 수 없는 요청이라면 아래 지시를 따른다.</span>
 </p>
 <p>
   <span class="i18n en"><b>Brevity rule:</b> report prose is capped per section — motivation two sentences, progress one, conclusion two, problem context brief, recommendations three. Long reports are not human-readable: never make the reader wade through paragraphs of prose. Tables, diagrams, and code are exempt from the limit, because they are data displays, not prose. Each report must follow this structured format, in this order. Omit a section that has nothing to show. It is important not to exceed twenty lines in total; if you make it too long, it creates another heavy job.</span>

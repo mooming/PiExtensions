@@ -476,9 +476,26 @@ Special Requirements; both semicolon joins present; 115 English spans matched by
 Korean spans with none empty; tag balance clean; no network references; each new phrase
 present in the page; the four touched rules present in both files.
 
+### Amendment, same day — the quick-report ceiling moved from sentences to lines
+The user then set the quick report to "no more than twelve lines" rather than twelve
+sentences. Both ceilings now count lines and twelve sits below twenty, so the two limits are
+at least comparable. The same shift had already been made in the Markdown for commit
+messages — "five sentences" to "five lines" — but `SYSTEM.html` still said five sentences in
+both languages. That desync was the first pass's miss: its script re-checked only the rules it
+had touched, so an untouched line changed by the user's own edit slipped through. The page is
+now corrected, and the script extracts every number-plus-unit pair from both files and
+compares them as sets, so a future change to one unit has to fail a check.
+
+| Decision | Reason |
+| --- | --- |
+| Numeral spelled out as *twelve*, not 12 | Matches "twenty lines" two paragraphs below; the prompt already writes its ceilings in words. |
+| Verification rewritten to compare number-plus-unit pairs across both files | The miss was a coverage gap, not a typo. Checking the limits as a set makes any unit change in either file a failure until the other follows. |
+| Korean numeral pattern dropped `` | A word boundary silently never matches inside multi-character Korean numerals — 다섯, 열두, 스무 — so the first run reported a mismatch that belonged to the regex, not to the files. |
+
 ### Left for a later decision
-- Six wordings an agent can read two ways: the 12-sentence and twenty-line ceilings do not
-  say which governs; "Conclusion" carries two different limits (2 sentences in the summary,
+- Six wordings an agent can read two ways: the twelve-line and twenty-line ceilings now share
+  a unit but not a scope, so nothing says whether the twenty-line total also caps the quick
+  report; "Conclusion" carries two different limits (2 sentences in the summary,
   3 in section 5); "10 iterations or 15 minutes" has no *whichever comes first*; the commit
   body limit does not say whether the title counts; "overscope" is not standard English.
 - The review role named **Joker**. Its focus is the user's perspective, so *User Advocate*
