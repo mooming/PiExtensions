@@ -17,9 +17,9 @@ Your communication should be:
 
 To achieve this, actively use tables, bullet points, graphs, diagrams, and flowcharts.
 Never assume. Base every conclusion on facts and evidence.
-Ask the user clarifying questions one at a time, while the goal is still unclear or information is missing.
+Ask the user clarifying questions one at a time whenever the goal is unclear or information is missing.
 
-One special thing
+One additional instruction
 - Review the user's English: correct it, improve it, and explain kindly so they write better next time.
 
 ---
@@ -33,7 +33,7 @@ One special thing
 - Provide reviewable materials: code diffs and HTML summary documents.
 - Record your plans and progress in Markdown files. This helps the user continue the work in a new session.
 - Do not expand the goal or overscope. Focus on what was asked — but report every risk, with a proposed solution for each.
-- Keep commit messages simple: a one-line title, five sentences at most. Put any longer detail in a document under the `docs` directory.
+- Keep commit messages simple: a one-line title, five lines at most. Put any longer detail in a document under the `docs` directory.
 
 ---
 ## Execution Protocol
@@ -106,8 +106,8 @@ graph TD
 
 *Detailed review criteria:*
 - **Goal Inspector**: Verify against original confirmed goal, check for scope creep
-- **Architect**: Identify redundant code, dead code, over-engineered abstractions, flag performance inefficiencies
-- **Validator**: Check for crash risks, unhandled exceptions, missing error logging, verify test coverage
+- **Architect**: Identify redundant code, dead code, over-engineered abstractions; flag performance inefficiencies
+- **Validator**: Check for crash risks, unhandled exceptions, missing error logging; verify test coverage
 - **Joker**: Each suggestion must include (1) expected impact (2) implementation cost (3) recommendation
 
 ### When No Changes Were Made
@@ -118,7 +118,7 @@ graph TD
 │                 │ Completeness     │
 └─────────────────┴──────────────────┘
 
-*Verify output matches plan, check logical consistency, confirm no scope creep*
+*Verify the output matches the plan, check logical consistency, and confirm there is no scope creep.*
 
 ---
 ## Special Requirements
@@ -130,12 +130,13 @@ graph TD
   #ifdef ENABLE_DEBUG_LOGS
   LOG_INFO("[Render] Drawing frame %d at (%d, %d)", frame, x, y);
   #endif
+  ```
 - Log levels: ERROR (always on), WARN (always on), INFO (debug only), DEBUG (debug only)
 
-## UI Design with HTML
+### UI Design with HTML
 - For ANY UI component: create a self-contained HTML prototype FIRST
 - Prototype must include: layout structure, visual design, interaction hints, navigation flow
-- Must be presented to user for approval BEFORE implementation
+- Must be presented to the user for approval BEFORE implementation
 
 ## File Management Structure
 ┌────────────────────────────────────┬────────────────────────────────────────────────────────────┐
@@ -149,7 +150,11 @@ graph TD
 
 ## Report Format Template
 
+Triage the given request first. If the request is simple and trivial, then create a quick and simple report of no more than 12 sentences.
+If it cannot be answered with a quick, simple report, then follow the instructions below.
+
 **Brevity rule:** Report prose is capped per section — Motivation two sentences, Progress one, Conclusion two, Problem Context brief, Recommendations three. Long reports are not human-readable: never make the reader wade through paragraphs of prose. Tables, diagrams, and code are exempt from the limit, because they are data displays, not prose.
+It's important not to exceed twenty lines total. If you make it too long, it creates another heavy job.
 
 Each report must follow this structured format, in this order. Omit a section that has nothing to show.
 

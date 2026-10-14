@@ -443,3 +443,45 @@ Verified by script: typos and removed rules absent from both files, 114 English 
 matched by 114 Korean spans with none empty, tag balance clean, no network references,
 13 of 13 table cells and 44 of 53 prose lines verbatim, the 9 residuals reviewed
 manually as paraphrases.
+
+---
+
+## 2026-10-14 — SYSTEM.md English pass: definite errors and non-idiomatic wording
+
+### Goal
+The user had rewritten the front matter of the Report Format Template in `.pi/SYSTEM.md` —
+the triage paragraph, the twenty-line ceiling, "five sentences" to "five lines" — without
+touching `SYSTEM.html`, and asked first for an English review, then for the definite errors
+and the non-idiomatic wording to be fixed. The ambiguity items stayed as found.
+
+### Decision log
+
+| Decision | Reason |
+| --- | --- |
+| "the requrest" → request; "follow the below instruction" → "follow the instructions below"; "is not simple to answer with the quick and simple report" → "cannot be answered with a quick, simple report" | The three real faults in the new passage: a typo, *below* placed before its noun, and a subject that cannot be "simple to answer with" a report. |
+| "within 12 sentences" → "of no more than 12 sentences" | *Within* counts an interval, not a ceiling; it reads as a literal transfer of 〜이내. |
+| "while the goal is still unclear" → "whenever the goal is unclear" | *While* names a duration, so the condition reads as a time window that must eventually close. Korean line changed from "모자라는 동안에는" to "모자랄 때마다" to match. |
+| "One special thing" → "One additional instruction" | The old phrase was a bare fragment with no heading role, and the bullet under it is an instruction, not a thing. |
+| Comma splices in the Architect and Validator criteria joined with a semicolon | Two finite verbs joined by a comma alone. The HTML already used a semicolon, so this also closes a parity gap rather than inventing a style. |
+| Closed the ```c fence under Logging Strategy | The fence was never closed, so it swallowed the "Log levels" bullet and the rest of the section whenever the Markdown rendered. Reverses the 2026-10-09 "left as found" decision, at the user's request. |
+| `## UI Design with HTML` demoted to `###`; `## File Management Structure` left at `##` | The page puts UI design at `<h3>` under §05 Special requirements and File management in its own numbered §06, so matching the page fixes the Markdown's own outranking-heading fault without inventing a third structure. Reverses the other half of the same "left as found" decision. |
+| Triage paragraph and the twenty-line ceiling added to `SYSTEM.html` §07 | The user's uncommitted edit added them to the Markdown only. AGENTS.md requires the same content in both files in the same commit, so mirroring is part of this task, not an extra. |
+| "it creates another heavy job" mirrored faithfully, not improved | It is on the ambiguity list the user chose not to fix, so the page carries the rule as written rather than a quieter paraphrase of it. |
+| Committed the user's uncommitted lines alongside the fixes | The typo fix sits inside their new sentence, so the two cannot be split into separate commits. |
+
+### Verification
+Verified by script (17 checks, all passing): the seven faulted strings absent from the
+Markdown; code fences balanced; UI Design and Logging Strategy both at level 3 under
+Special Requirements; both semicolon joins present; 115 English spans matched by 115
+Korean spans with none empty; tag balance clean; no network references; each new phrase
+present in the page; the four touched rules present in both files.
+
+### Left for a later decision
+- Six wordings an agent can read two ways: the 12-sentence and twenty-line ceilings do not
+  say which governs; "Conclusion" carries two different limits (2 sentences in the summary,
+  3 in section 5); "10 iterations or 15 minutes" has no *whichever comes first*; the commit
+  body limit does not say whether the title counts; "overscope" is not standard English.
+- The review role named **Joker**. Its focus is the user's perspective, so *User Advocate*
+  or *Devil's Advocate* says what it does; *joker* reads as a playing card or a prankster.
+- The HTML heading "User interface design with HyperText Markup Language" still spells out
+  HTML, a leftover of the removed Plain Naming rule.
