@@ -500,5 +500,30 @@ compares them as sets, so a future change to one unit has to fail a check.
   body limit does not say whether the title counts; "overscope" is not standard English.
 - The review role named **Joker**. Its focus is the user's perspective, so *User Advocate*
   or *Devil's Advocate* says what it does; *joker* reads as a playing card or a prankster.
-- The HTML heading "User interface design with HyperText Markup Language" still spells out
-  HTML, a leftover of the removed Plain Naming rule.
+
+## 2026-10-14 — SYSTEM.html: the UI design heading stops spelling out HTML
+
+The user asked to mirror a SYSTEM.md change into `SYSTEM.html` and commit. No uncommitted
+Markdown change existed — `git status` was clean at `9941001`, which had already carried the
+"twelve lines" edit into both files. A parity audit over all 141 Markdown content units found
+the tree already in sync, except for the one defect the previous entry had parked under
+*Left for a later decision*: the §05 heading read "User interface design with HyperText Markup
+Language" while `.pi/SYSTEM.md` says `### UI Design with HTML`.
+
+| Decision | Reason |
+| --- | --- |
+| Audited instead of trusting the last commit message | `9941001` claimed parity, but its own journal entry says the check covered only the number-plus-unit pairs it had touched. A claim of verification is not verification. |
+| Fixed the heading only, not the prose under it | A heading is a navigational label and should name its section the way the Markdown names it; a sentence may be spelled out for readability and still carry the same content, which is what AGENTS.md permits. |
+| English follows the page's sentence case — *UI design with HTML* | The page already lowercases heading words ("Logging strategy", "File management structure") where the Markdown uses title case. Content matches, casing follows the page's own convention. |
+| Korean heading left as is | `HTML로 하는 화면 설계` already used the acronym, so only the English had drifted; the fix also ends the English/Korean disagreement inside one heading. |
+
+### Verification
+Checked by script, all passing: `HyperText` absent from the page; the new heading present and
+equivalent to `.pi/SYSTEM.md:136`; 152 English spans still matched by 152 Korean spans, none
+empty; tags balanced; no network references; every number-plus-unit pair still equal across the
+two files; the 141-unit audit rerun with no new gap.
+
+### A defect found on the way, left alone
+`JOURNAL.md` line 493 holds a literal backspace byte (0x08) inside a code span, where the text
+meant to show a `\b` regex token. It renders as an empty span. Left alone here to keep this
+commit to one change; it needs a separate pass over the journal's code spans.
